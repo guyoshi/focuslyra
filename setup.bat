@@ -22,8 +22,6 @@ if errorlevel 1 goto :no_winget
 winget install --id Python.Python.3.12 -e --scope user --accept-package-agreements --accept-source-agreements
 if errorlevel 1 goto :python_install_failed
 
-rem The current terminal may not receive the updated PATH immediately.
-rem Search again, including the normal per-user installation folder.
 call :find_python
 if defined PY_EXE goto :python_ready
 
@@ -57,9 +55,20 @@ echo [Focuslyra] Updating pip...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip
 if errorlevel 1 goto :pip_failed
 
-echo [Focuslyra] Installing dependencies...
+echo [Focuslyra] Installing/updating core dependencies...
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 if errorlevel 1 goto :pip_failed
+
+rem Verify the imports that currently prevent the application from starting if absent.
+".venv\Scripts\python.exe" -c "import fastapi, uvicorn, requests, google.auth, googleapiclient, google_auth_oauthlib; print('[Focuslyra] Core dependency check OK')"
+if errorlevel 1 goto :pip_failed
+
+rem Store the dependency-file hash. run.bat compares this on every launch so future
+rem Git updates can install new packages automatically without recreating the venv.
+powershell -NoProfile -Command "(Get-FileHash 'requirements.txt' -Algorithm SHA256).Hash | Set-Content '.venv\.focuslyra_requirements_hash' -Encoding ascii"
+if errorlevel 1 (
+  echo [WARN] Could not save dependency hash. Focuslyra will still work, but may re-check packages next launch.
+)
 
 if not exist ".env" (
   copy ".env.example" ".env" >nul
@@ -80,7 +89,6 @@ exit /b 0
 set "PY_EXE="
 set "PY_ARGS="
 
-rem Prefer the Windows Python launcher when it points to a real modern Python.
 py -3.12 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if not errorlevel 1 (
   set "PY_EXE=py"
@@ -95,15 +103,12 @@ if not errorlevel 1 (
   exit /b 0
 )
 
-rem python.exe may be only the Microsoft Store alias, so execute it to verify.
 python -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if not errorlevel 1 (
   set "PY_EXE=python"
   exit /b 0
 )
 
-rem Search common per-user Python install paths directly. Store the path WITHOUT quotes;
-rem calls below add quotes exactly once, which avoids cmd treating \"...\" literally.
 for %%V in (314 313 312 311) do (
   if exist "%LocalAppData%\Programs\Python\Python%%V\python.exe" (
     set "PY_EXE=%LocalAppData%\Programs\Python\Python%%V\python.exe"
@@ -129,7 +134,7 @@ goto :failed
 
 :pip_failed
 echo.
-echo [ERROR] Python dependencies could not be installed.
+echo [ERROR] Python dependencies could not be installed or verified.
 echo Check your internet connection and the error above.
 goto :failed
 
