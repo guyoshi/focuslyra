@@ -33,29 +33,42 @@ def _settings_from_profile(profile: dict[str, Any]) -> dict[str, dict[str, Any]]
     return {}
 
 
-def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
-    """Return the global language catalogue merged with learner-owned settings.
+def _enabled_codes(profile: dict[str, Any], catalogue_codes: list[str]) -> set[str]:
+    """Return languages selected by the learner.
 
-    The catalogue describes languages supported by Focuslyra. Priority, status,
-    target variety, current state and goals belong to the learner. A profile may
-    also define ``enabled_languages`` so different local learners see only the
-    languages they actually study.
+    Older personal profiles did not have enabled_languages. For backwards
+    compatibility, absence of the field means every catalogue language is
+    selected. New/explicit profiles store the selected list directly.
+    """
+    raw = profile.get("enabled_languages")
+    if isinstance(raw, list):
+        return {str(code) for code in raw if str(code) in catalogue_codes}
+    return set(catalogue_codes)
+
+
+def load_language_catalogue(user_id: str | None = None) -> list[dict[str, Any]]:
+    """Return every supported language plus learner-owned settings.
+
+    This is the Settings/onboarding view. ``selected`` controls whether the
+    language belongs to this learner's study set; unselected languages remain
+    visible here so they can be enabled later.
     """
     profile = load_profile(user_id)
     settings = _settings_from_profile(profile)
-    enabled_raw = profile.get("enabled_languages")
-    enabled = {str(code) for code in enabled_raw} if isinstance(enabled_raw, list) and enabled_raw else None
+    catalogue = _catalogue()
+    catalogue_codes = [str(item.get("code") or "") for item in catalogue if item.get("code")]
+    enabled = _enabled_codes(profile, catalogue_codes)
     result: list[dict[str, Any]] = []
 
-    for base in _catalogue():
+    for base in catalogue:
         code = str(base.get("code") or "").strip()
-        if not code or (enabled is not None and code not in enabled):
+        if not code:
             continue
         merged = dict(base)
         learner = settings.get(code, {})
-
-        merged["priority"] = int(learner.get("priority", base.get("default_priority", base.get("priority", 5))))
-        merged["status"] = str(learner.get("status", base.get("default_status", base.get("status", "parked"))))
+        merged["selected"] = code in enabled
+        merged["priority"] = int(learner.get("priority", base.get("default_priority", base.get("priority", 3))))
+        merged["status"] = str(learner.get("status", base.get("default_status", base.get("status", "active"))))
         merged["target_variety"] = str(
             learner.get("target_variety", base.get("default_target_variety", base.get("target_variety", code)))
         )
@@ -77,19 +90,38 @@ def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
     return result
 
 
+def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
+    """Return only languages selected for this learner.
+
+    Daily planning, dashboard language cards, assessment and study generation
+    use this filtered list. Settings uses :func:`load_language_catalogue` so
+    every supported language is always available to every learner.
+    """
+    return [language for language in load_language_catalogue(user_id) if language.get("selected")]
+
+
 def save_language_settings(updates: dict[str, dict[str, Any]], user_id: str | None = None) -> list[dict[str, Any]]:
     if not isinstance(updates, dict):
         raise LanguageServiceError("Language updates must be an object keyed by language code.")
 
-    catalogue_codes = {str(language.get("code")) for language in _catalogue() if language.get("code")}
+    catalogue = _catalogue()
+    catalogue_order = [str(language.get("code")) for language in catalogue if language.get("code")]
+    catalogue_codes = set(catalogue_order)
     profile = load_profile(user_id)
     stored = _settings_from_profile(profile)
+    enabled = _enabled_codes(profile, catalogue_order)
 
     for code, changes in updates.items():
         code = str(code)
         if code not in catalogue_codes or not isinstance(changes, dict):
             continue
         current = dict(stored.get(code, {}))
+
+        if "selected" in changes and changes["selected"] is not None:
+            if bool(changes["selected"]):
+                enabled.add(code)
+            else:
+                enabled.discard(code)
 
         if "status" in changes and changes["status"] is not None:
             status = str(changes["status"]).strip().lower()
@@ -102,7 +134,7 @@ def save_language_settings(updates: dict[str, dict[str, Any]], user_id: str | No
                 priority = int(changes["priority"])
             except (TypeError, ValueError) as exc:
                 raise LanguageServiceError("Language priority must be a whole number.") from exc
-            current["priority"] = max(1, min(9, priority))
+            current["priority"] = max(1, min(4, priority))
 
         if "target_variety" in changes and changes["target_variety"] is not None:
             current["target_variety"] = str(changes["target_variety"]).strip()[:240]
@@ -111,10 +143,11 @@ def save_language_settings(updates: dict[str, dict[str, Any]], user_id: str | No
             current["current_state"] = str(changes["current_state"]).strip()[:1000]
 
         if "goals" in changes and isinstance(changes["goals"], list):
-            current["goals"] = [str(goal).strip()[:160] for goal in changes["goals"] if str(goal).strip()][:20]
+            current["goals"] = [str(goal).strip()[:220] for goal in changes["goals"] if str(goal).strip()][:8]
 
         stored[code] = current
 
+    profile["enabled_languages"] = [code for code in catalogue_order if code in enabled]
     profile["language_settings"] = stored
     save_profile(profile, user_id)
     return load_languages(user_id)
