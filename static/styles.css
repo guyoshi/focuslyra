@@ -1,3 +1,5 @@
+@import url('/static/calendar.css');
+
 :root {
   --bg: #0b1017;
   --panel: #141b25;
