@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import recent_learning_evidence, save_learning_feedback, save_session
+from .profile_service import load_profile
 from .providers import AIProviderError, ollama_json
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,7 +31,7 @@ def _language_profile(language_code: str) -> dict[str, Any]:
 
 
 def _learner_context(language_code: str) -> dict[str, Any]:
-    profile = _load_json("profile.json")
+    profile = load_profile()
     language = _language_profile(language_code)
     evidence = recent_learning_evidence(language_code, limit=16)
     return {
