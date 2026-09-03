@@ -8,96 +8,110 @@ Name: **Focuslyra**
 
 Focuslyra is a local-first language-learning workspace with adaptive study, learner-owned memory, multimodal evidence and replaceable AI/audio providers.
 
-The current priority is proving the learning loop locally before building cloud/commercial infrastructure.
+Current milestone: **0.6 adaptive Study**.
 
-## Implemented foundation
+## Implemented
 
-### Application
+### Application / architecture
 
-- FastAPI local backend.
-- Browser frontend.
+- FastAPI local backend and browser frontend.
 - Windows setup/run scripts with dependency-change detection.
+- `finish_local_setup.bat` for the complete free local learning stack.
 - GitHub smoke-test workflow.
 - Paid AI disabled by default.
+- Current-user/deployment seam for future hosted/authenticated use.
+- User-scoped DB, profile, language settings, voice preferences and media.
+- Global language catalogue separated from learner-specific priorities/goals/target varieties.
 
-### Local learning intelligence
+### Adaptive learning loop
 
-- Ollama/Qwen local assessment path.
-- Writing analysis with structured feedback.
-- Browser microphone recording.
-- Local recording persistence.
-- Faster-Whisper local transcription path.
-- Speech transcript -> Qwen learning analysis path.
-- AI feedback and evidence-event persistence in SQLite.
-- Recent learner evidence fed back into later analysis.
+- Session Planner v1 uses learner priority, active/maintenance state, recency, recent practice frequency, review targets and recent skill evidence.
+- Normal and minimum-day plans.
+- Dynamic Activity Engine for Speak, Listen, Write, Read and Pronounce.
+- Qwen/Ollama local activity generation with multilingual rule-based fallback.
+- Hidden retrieval targets can return in later activities without being revealed first.
+- Study advances through a planned sequence and stores new evidence after attempts.
 
-### Audio/pronunciation foundation
+### Speaking / writing / reading / listening
 
-- Local Kokoro ONNX TTS service.
-- Persistent WAV cache.
-- TTS provider/routing foundation.
-- Per-language configurable voice profiles.
-- Separate reference/conversation/listening/default voice purposes.
-- Browser/system TTS fallback.
-- RP candidate calibration infrastructure.
-- Praat/Parselmouth acoustic baseline service.
+- Dynamic speaking prompts in the selected language.
+- Browser microphone recording and original-audio persistence.
+- Faster-Whisper local transcription.
+- Qwen local assessment of spoken transcripts.
+- Dynamic writing prompts and local assessment.
+- Dynamic reading passages with comprehension assessment.
+- Dynamic listening passages with transcript hidden before the attempt.
+- Local Kokoro persistent WAV generation/cache for supported languages.
+- Browser/system TTS fallback for languages not covered by the current local TTS provider.
+
+### Pronunciation v1
+
+- Local Praat/Parselmouth acoustic analysis.
+- Controlled sentence practice against a known local TTS reference.
+- Whisper intelligibility comparison.
+- Timing similarity.
+- voiced/quiet rhythm similarity.
+- broad pitch-contour/prosody-shape similarity.
+- pronunciation evidence saved to the learner history.
+
+Important: exact phoneme-by-phoneme accuracy is intentionally not claimed yet. Forced alignment and target-specific calibration remain future work.
+
+### Voices
+
+- Per-language voice profiles.
+- default/reference/conversation/listening voice roles.
+- speed and engine choice.
+- local Kokoro voice discovery.
+- browser/system fallback.
+- persistent generated-audio cache.
 
 ### Calendar
 
 - Google Calendar OAuth integration.
 - Focuslyra-owned study calendar.
-- Read-only availability selection.
-- Free-slot search.
-- Smart earliest-slot scheduling.
-- Calendar reminders.
+- availability calendar selection.
+- free-slot search and earliest-slot scheduling.
+- reminders and upcoming events.
 
-### Memory/data
+### Memory/data foundation
 
-- Learner profile and initial language profiles.
-- User-scoped database records (`user_id`).
-- User context/deployment seam for future authenticated/hosted mode.
-- User-scoped voice preferences.
-- Configurable local data/private/media roots.
-- Read-only Git source sync foundation.
-- Tinkos and book repositories configured as interest-memory sources.
-
-### Product architecture
-
-- Commercial-readiness guardrails documented.
-- Main navigation grouped into Learn / Library / Settings.
-- AI providers intended to remain replaceable.
-- Learner/private data separated from distributable Git content.
+- sessions, writings/responses, AI feedback and evidence events in SQLite.
+- recent learner evidence feeds later assessment/planning.
+- read-only Git source sync foundation.
+- Tinkos/book sources configured as interest-memory candidates.
 
 ## Still incomplete
 
-The following visible areas are not yet complete learning features:
+These remain later milestones rather than part of 0.6:
 
-- adaptive daily planner on Dashboard;
-- dynamic Study activity generation/orchestration;
-- end-to-end Listening exercises;
-- adaptive Reading exercises;
-- reliable phoneme/accent scoring and alignment;
-- real spaced-repetition Review engine;
+- dedicated spaced-repetition Review engine/UI;
 - evidence-derived Progress dashboard;
-- persistent dynamic Concept database;
-- Git source indexing/retrieval/RAG;
-- automatic use of interest memory in lessons;
-- English diagnostic inside the app;
-- mobile/PWA access;
-- external free-provider fallbacks (Gemini/Groq) in the learning flow.
+- persistent Concepts/visual-vocabulary database;
+- Memory source indexing/chunking/RAG and automatic use in activity generation;
+- automatic Calendar scheduling directly from the Session Planner;
+- English diagnostic inside Focuslyra;
+- phoneme alignment and language/accent-specific pronunciation calibration;
+- mobile/PWA access and PC↔phone secure connection/sync;
+- external free-provider fallbacks such as Gemini/Groq;
+- realtime low-latency AI voice conversation.
 
 See `FEATURE_STATUS.md` for the detailed truth table.
 
-## Current local setup dependencies
+## Local setup
 
-For the complete currently implemented local loop, the machine needs:
+For the currently implemented free local learning loop:
 
-1. Python environment via `run.bat` / `setup.bat`;
-2. Ollama + Qwen via `configure_free_ai.bat`;
-3. Whisper via `configure_free_audio.bat`;
-4. Kokoro local TTS via `configure_local_tts.bat` (optional until voice/listening work);
-5. pronunciation acoustic dependencies via `configure_pronunciation.bat` (optional until pronunciation work);
-6. Google OAuth credentials only if Calendar integration is desired.
+1. `git pull`
+2. run `finish_local_setup.bat` once;
+3. run `run.bat` for normal use;
+4. Google OAuth is only required if Calendar integration is desired.
+
+The unified setup prepares/validates:
+
+- Ollama + Qwen3 4B;
+- Faster-Whisper;
+- Kokoro ONNX;
+- Praat/Parselmouth pronunciation dependencies.
 
 ## Non-negotiable rules
 
@@ -110,26 +124,24 @@ For the complete currently implemented local loop, the machine needs:
 7. Speaking/listening are the primary learning goals.
 8. Recognition and production are tracked separately.
 9. Concept visuals prefer emoji/reuse before image generation.
-10. Adding a new language should primarily be configuration/data, not a code rewrite.
-11. Mobile/hosted versions must reuse the same learning domain rather than becoming separate products.
-12. Do not build billing/cloud infrastructure before it is actually needed; preserve interfaces now instead.
+10. Adding a language should primarily be configuration/data, not a core rewrite.
+11. Mobile/hosted versions must reuse the same learning domain/backend contracts.
+12. Do not build billing/cloud infrastructure before needed; preserve interfaces now instead.
 
-## Immediate next product milestone
+## Next milestone
 
-Finish the local audio stack on Gui's PC, then make **Study dynamic**:
+Build the memory layer around the now-functional adaptive Study loop:
 
 ```text
-learner evidence + goals + due review items
-            ↓
-       session planner
-            ↓
-  selected activity / language
-            ↓
- speak/listen/write/read/pronounce
-            ↓
-         evidence
-            ↓
-       next session
+Review scheduler
+      +
+Concept vocabulary
+      +
+Memory/RAG
+      +
+Evidence-derived Progress
+      +
+Calendar automation
 ```
 
-After this loop is real, Review, Progress, Concepts and Calendar scheduling can all consume the same planner/evidence model instead of static prototype values.
+After that, package the same backend contracts into the first Focuslyra PWA/mobile client.
