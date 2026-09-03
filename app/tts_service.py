@@ -5,13 +5,18 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .runtime import legacy_media_root, to_storable_path, user_media_dir
 from .voice_preferences import resolve_voice_profile
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "models" / "tts" / "kokoro"
-GENERATED_DIR = ROOT / "media" / "generated"
 MODEL_PATH = MODEL_DIR / "kokoro-v1.0.onnx"
 VOICES_PATH = MODEL_DIR / "voices-v1.0.bin"
+
+
+def _generated_dirs() -> list[Path]:
+    """User-scoped generated audio first, then the pre-multiuser flat layout."""
+    return [user_media_dir() / "generated", legacy_media_root() / "generated"]
 
 
 class TTSServiceError(RuntimeError):
@@ -186,7 +191,7 @@ def synthesise(
         )
 
     cache_id = _cache_id(clean, language_code, selected_voice, speed)
-    out_dir = GENERATED_DIR / language_code
+    out_dir = user_media_dir() / "generated" / language_code
     out_dir.mkdir(parents=True, exist_ok=True)
     wav_path = out_dir / f"{cache_id}.wav"
     metadata_path = out_dir / f"{cache_id}.json"
@@ -208,7 +213,7 @@ def synthesise(
         "purpose": purpose,
         "speed": speed,
         "engine": "kokoro-onnx/local",
-        "relative_audio_path": str(wav_path.relative_to(ROOT)).replace("\\", "/"),
+        "relative_audio_path": to_storable_path(wav_path),
         "cached": True,
     }
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -218,8 +223,9 @@ def synthesise(
 def cached_audio_path(cache_id: str) -> Path:
     if not cache_id or any(ch not in "0123456789abcdef" for ch in cache_id.lower()):
         raise TTSServiceError("Invalid generated-audio id.")
-    for path in GENERATED_DIR.glob(f"*/{cache_id}.wav"):
-        return path
+    for generated_dir in _generated_dirs():
+        for path in generated_dir.glob(f"*/{cache_id}.wav"):
+            return path
     raise TTSServiceError("Generated audio was not found in the local cache.")
 
 

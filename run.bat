@@ -12,6 +12,15 @@ echo  Focuslyra
 echo ==================================================
 echo.
 
+rem Honour FOCUSLYRA_HOST/FOCUSLYRA_PORT from .env instead of hardcoding
+rem 127.0.0.1:8765 everywhere, so a customised .env actually takes effect.
+set "FOCUSLYRA_HOST=127.0.0.1"
+set "FOCUSLYRA_PORT=8765"
+if exist ".env" (
+  for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b /r /c:"FOCUSLYRA_HOST=" ".env"`) do if not "%%B"=="" set "FOCUSLYRA_HOST=%%B"
+  for /f "usebackq tokens=1,* delims==" %%A in (`findstr /b /r /c:"FOCUSLYRA_PORT=" ".env"`) do if not "%%B"=="" set "FOCUSLYRA_PORT=%%B"
+)
+
 if not exist ".venv\Scripts\python.exe" (
   echo [Focuslyra] First run detected. Running setup...
   call setup.bat
@@ -47,13 +56,13 @@ if errorlevel 1 (
 )
 
 echo [Focuslyra] Starting local server...
-echo [Focuslyra] URL: http://127.0.0.1:8765
+echo [Focuslyra] URL: http://%FOCUSLYRA_HOST%:%FOCUSLYRA_PORT%
 echo [Focuslyra] Log: %LOG_FILE%
 echo.
 
-start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://127.0.0.1:8765'" >nul 2>nul
+start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://%FOCUSLYRA_HOST%:%FOCUSLYRA_PORT%'" >nul 2>nul
 
-".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload 2>&1
+".venv\Scripts\python.exe" -m uvicorn app.main:app --host %FOCUSLYRA_HOST% --port %FOCUSLYRA_PORT% --reload 2>&1
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (

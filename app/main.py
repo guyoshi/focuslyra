@@ -28,9 +28,12 @@ from .calendar_service import (
     upcoming_focuslyra_events,
 )
 from .db import initialise_database, save_session
+from .language_service import LanguageServiceError, save_language_settings, top_priority_active_language
 from .learning_engine import LearningEngineError, analyse_submission
+from .profile_service import ProfileServiceError, load_profile, save_profile
 from .pronunciation_service import PronunciationServiceError, analyse_acoustics, pronunciation_status
 from .providers import get_provider_statuses, paid_ai_allowed
+from .runtime import from_storable_path, runtime_config, to_storable_path, user_media_dir
 from .source_manager import SourceSyncError, sync_git_source
 from .tts_service import (
     TTSServiceError,
@@ -44,11 +47,14 @@ from .voice_router import router as voice_router
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
 DATA_DIR = ROOT / "data"
-MEDIA_DIR = ROOT / "media"
-RECORDINGS_DIR = MEDIA_DIR / "recordings"
+
+# 25MB is generous for a spoken-practice recording (webm/opus at typical
+# bitrates runs well under 1MB/minute) while still capping accidental/huge
+# uploads from filling the learner's disk unattended.
+MAX_RECORDING_BYTES = int(os.getenv("FOCUSLYRA_MAX_RECORDING_MB", "25") or "25") * 1024 * 1024
 
 load_dotenv(ROOT / ".env")
-RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+runtime_config().media_root.mkdir(parents=True, exist_ok=True)
 initialise_database()
 
 app = FastAPI(title="Focuslyra", version="0.5.0")
@@ -140,12 +146,66 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/profile")
 def profile() -> Any:
-    return load_json("profile.json")
+    try:
+        return load_profile()
+    except ProfileServiceError as exc:
+        raise learning_error(exc) from exc
+
+
+@app.put("/api/profile")
+def update_profile(payload: dict[str, Any]) -> Any:
+    try:
+        return save_profile(payload)
+    except ProfileServiceError as exc:
+        raise learning_error(exc) from exc
 
 
 @app.get("/api/languages")
 def languages() -> Any:
     return load_json("languages.json")
+
+
+class LanguageSettingsPayload(BaseModel):
+    languages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+@app.put("/api/languages")
+def update_languages(payload: LanguageSettingsPayload) -> Any:
+    try:
+        return save_language_settings(payload.languages)
+    except LanguageServiceError as exc:
+        raise learning_error(exc) from exc
+
+
+@app.get("/api/study/today")
+def study_today() -> dict[str, Any]:
+    """A small, honest stand-in for the real daily session planner.
+
+    It picks which active language should open when the learner presses
+    Start, using existing priority data, instead of the app silently
+    defaulting to a hardcoded language regardless of what is actually a
+    priority.
+    """
+    try:
+        profile_data = load_profile()
+    except ProfileServiceError as exc:
+        raise learning_error(exc) from exc
+
+    language = top_priority_active_language()
+    if language is None:
+        raise HTTPException(status_code=404, detail="No active language is configured yet. Add one in Settings → Languages.")
+
+    def _minutes(value: Any, default: int) -> int:
+        try:
+            return max(5, int(value))
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "language": language,
+        "normal_session_minutes": _minutes(profile_data.get("normal_session_minutes"), 45),
+        "minimum_session_minutes": _minutes(profile_data.get("minimum_session_minutes"), 12),
+    }
 
 
 @app.get("/api/sources")
@@ -248,14 +308,20 @@ async def save_recording(
     if suffix not in {".webm", ".wav", ".mp3", ".m4a", ".ogg"}:
         suffix = ".webm"
 
-    day_dir = RECORDINGS_DIR / datetime.now().strftime("%Y-%m-%d")
+    contents = await file.read()
+    if len(contents) > MAX_RECORDING_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Recording is larger than the {MAX_RECORDING_BYTES // (1024 * 1024)}MB limit for a single upload.",
+        )
+
+    day_dir = user_media_dir() / "recordings" / datetime.now().strftime("%Y-%m-%d")
     day_dir.mkdir(parents=True, exist_ok=True)
 
     recording_id = uuid4().hex
     audio_path = day_dir / f"{recording_id}{suffix}"
     metadata_path = day_dir / f"{recording_id}.json"
 
-    contents = await file.read()
     audio_path.write_bytes(contents)
 
     metadata = {
@@ -265,7 +331,7 @@ async def save_recording(
         "created_at": utc_now(),
         "mime_type": file.content_type,
         "original_filename": file.filename,
-        "relative_audio_path": str(audio_path.relative_to(ROOT)).replace("\\", "/"),
+        "relative_audio_path": to_storable_path(audio_path),
     }
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -293,7 +359,7 @@ def learning_analyse_recording(recording_id: str) -> dict[str, Any]:
 
         relative = str(metadata.get("relative_audio_path") or "")
         if relative:
-            audio_path = ROOT / relative
+            audio_path = from_storable_path(relative)
             analysis_path = audio_path.with_suffix(".analysis.json")
             analysis_path.write_text(
                 json.dumps({"transcript": transcript, "learning": result}, ensure_ascii=False, indent=2),

@@ -5,8 +5,14 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .runtime import from_storable_path, legacy_media_root, user_media_dir
+
 ROOT = Path(__file__).resolve().parents[1]
-RECORDINGS_DIR = ROOT / "media" / "recordings"
+
+
+def _recording_dirs() -> list[Path]:
+    """User-scoped recordings first, then the pre-multiuser flat layout."""
+    return [user_media_dir() / "recordings", legacy_media_root() / "recordings"]
 
 
 class AudioServiceError(RuntimeError):
@@ -63,16 +69,17 @@ def _find_recording(recording_id: str) -> tuple[Path, dict[str, Any]]:
     if not recording_id or any(char not in "0123456789abcdef" for char in recording_id.lower()):
         raise AudioServiceError("Invalid recording id.")
 
-    for metadata_path in RECORDINGS_DIR.glob(f"*/{recording_id}.json"):
-        try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise AudioServiceError("The recording metadata is damaged.") from exc
-        relative = str(metadata.get("relative_audio_path") or "")
-        audio_path = ROOT / relative
-        if not audio_path.exists():
-            raise AudioServiceError("The recording audio file no longer exists.")
-        return audio_path, metadata
+    for recordings_dir in _recording_dirs():
+        for metadata_path in recordings_dir.glob(f"*/{recording_id}.json"):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise AudioServiceError("The recording metadata is damaged.") from exc
+            relative = str(metadata.get("relative_audio_path") or "")
+            audio_path = from_storable_path(relative)
+            if not audio_path.exists():
+                raise AudioServiceError("The recording audio file no longer exists.")
+            return audio_path, metadata
     raise AudioServiceError("Recording not found.")
 
 

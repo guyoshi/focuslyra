@@ -6,17 +6,19 @@ const state = {
   currentView: 'dashboard',
   currentMode: 'speak',
   calendarStatus: null,
+  currentLanguageCode: null,
+  sessionDurationMinutes: null,
+  profile: null,
+  languages: [],
 };
 
 const pageMeta = {
   dashboard: ['Focuslyra', 'One place for every language you decide to learn.'],
   study: ["Today's study", 'Speak, listen, read, write and train pronunciation in one workspace.'],
-  concepts: ['Concept memory', 'One meaning, many language expressions.'],
   review: ['Adaptive review', 'Recognition and production are different skills.'],
-  memory: ['Memory sources', 'Use your own worlds and projects without copying stale files.'],
+  memory: ['Memory', 'Reusable meaning and your own worlds/projects, without copying stale files.'],
   progress: ['Progress', 'Measure abilities instead of lesson completion.'],
-  calendar: ['Calendar', 'Fit language study around real life, then let Google remind you.'],
-  providers: ['AI providers', 'Local/free first. Paid intelligence is opt-in.'],
+  settings: ['Settings', 'Profile, languages, voices, AI providers and calendar — set once, mostly forget.'],
 };
 
 function escapeHtml(value) {
@@ -46,13 +48,30 @@ function setView(viewId) {
   const [title, subtitle] = pageMeta[viewId];
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSubtitle').textContent = subtitle;
-  if (viewId === 'calendar') refreshCalendar().catch(console.error);
+  if (viewId === 'settings') {
+    const activeTab = document.querySelector('.sub-tab[data-settings-tab].active')?.dataset.settingsTab || 'profile';
+    setSettingsTab(activeTab);
+  }
 }
 
 function setMode(mode) {
   state.currentMode = mode;
   document.querySelectorAll('.mode-tab').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
   document.querySelectorAll('.mode-panel').forEach(panel => panel.classList.toggle('active', panel.id === `mode-${mode}`));
+}
+
+function setSettingsTab(tab) {
+  document.querySelectorAll('.sub-tab[data-settings-tab]').forEach(button => button.classList.toggle('active', button.dataset.settingsTab === tab));
+  document.querySelectorAll('#settings .sub-panel').forEach(panel => panel.classList.toggle('active', panel.id === `settings-${tab}`));
+  if (tab === 'calendar') refreshCalendar().catch(console.error);
+  if (tab === 'voices' && window.FocuslyraVoice?.reload) window.FocuslyraVoice.reload().catch(console.error);
+  if (tab === 'profile') loadProfileSettings().catch(console.error);
+  if (tab === 'languages') loadLanguageSettings().catch(console.error);
+}
+
+function setMemoryTab(tab) {
+  document.querySelectorAll('.sub-tab[data-memory-tab]').forEach(button => button.classList.toggle('active', button.dataset.memoryTab === tab));
+  document.querySelectorAll('#memory .sub-panel').forEach(panel => panel.classList.toggle('active', panel.id === `memory-${tab}`));
 }
 
 function languageProgress(language) {
@@ -354,15 +373,133 @@ async function smartSchedule() {
   }
 }
 
+function fillProfileForm(profile) {
+  const form = document.getElementById('profileForm');
+  if (!form) return;
+  form.learner_name.value = profile.learner_name || '';
+  form.native_language.value = profile.native_language || '';
+  form.normal_session_minutes.value = profile.normal_session_minutes || 45;
+  form.minimum_session_minutes.value = profile.minimum_session_minutes || 12;
+  form.accent_importance.value = profile.accent_importance || 'medium';
+  form.attention_strategy.value = profile.attention_strategy || '';
+  const focus = new Set(profile.learning_focus || []);
+  form.querySelectorAll('input[name="learning_focus"]').forEach(checkbox => {
+    checkbox.checked = focus.has(checkbox.value);
+  });
+}
+
+async function loadProfileSettings() {
+  try {
+    const profile = await api('/api/profile');
+    state.profile = profile;
+    fillProfileForm(profile);
+  } catch (error) {
+    const message = document.getElementById('profileSettingsMessage');
+    message.hidden = false;
+    message.className = 'feedback';
+    message.textContent = error.message;
+  }
+}
+
+async function saveProfileSettings(event) {
+  event.preventDefault();
+  const form = event.target;
+  const message = document.getElementById('profileSettingsMessage');
+  const payload = {
+    ...(state.profile || {}),
+    learner_name: form.learner_name.value.trim(),
+    native_language: form.native_language.value.trim(),
+    normal_session_minutes: Number(form.normal_session_minutes.value || 45),
+    minimum_session_minutes: Number(form.minimum_session_minutes.value || 12),
+    accent_importance: form.accent_importance.value,
+    attention_strategy: form.attention_strategy.value.trim(),
+    learning_focus: [...form.querySelectorAll('input[name="learning_focus"]:checked')].map(checkbox => checkbox.value),
+  };
+  try {
+    state.profile = await api('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    fillProfileForm(state.profile);
+    message.hidden = false;
+    message.className = 'feedback good';
+    message.textContent = 'Profile saved. The local learning engine will use these values on the next analysis.';
+  } catch (error) {
+    message.hidden = false;
+    message.className = 'feedback';
+    message.textContent = error.message;
+  }
+}
+
+function renderLanguageSettings(languages) {
+  const host = document.getElementById('languageSettingsGrid');
+  if (!host) return;
+  host.innerHTML = languages.map(language => `
+    <div class="language-setting-row" data-code="${escapeHtml(language.code)}">
+      <span class="language-title"><span>${escapeHtml(language.flag)}</span>${escapeHtml(language.name)}</span>
+      <label class="inline-field">Priority
+        <input type="number" min="1" max="9" value="${escapeHtml(language.priority)}" data-field="priority" />
+      </label>
+      <label class="inline-field">Status
+        <select data-field="status">
+          <option value="active" ${language.status === 'active' ? 'selected' : ''}>Active</option>
+          <option value="maintenance" ${language.status === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+          <option value="parked" ${language.status === 'parked' ? 'selected' : ''}>Parked</option>
+        </select>
+      </label>
+    </div>`).join('');
+}
+
+async function loadLanguageSettings() {
+  try {
+    const languages = await api('/api/languages');
+    state.languages = languages;
+    renderLanguageSettings(languages);
+  } catch (error) {
+    const message = document.getElementById('languageSettingsMessage');
+    message.hidden = false;
+    message.className = 'feedback';
+    message.textContent = error.message;
+  }
+}
+
+async function saveLanguageSettings() {
+  const message = document.getElementById('languageSettingsMessage');
+  const updates = {};
+  document.querySelectorAll('.language-setting-row').forEach(row => {
+    updates[row.dataset.code] = {
+      priority: Number(row.querySelector('[data-field="priority"]').value || 1),
+      status: row.querySelector('[data-field="status"]').value,
+    };
+  });
+  try {
+    const languages = await api('/api/languages', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ languages: updates }),
+    });
+    state.languages = languages;
+    renderLanguages(languages);
+    renderLanguageSettings(languages);
+    message.hidden = false;
+    message.className = 'feedback good';
+    message.textContent = "Languages updated. \"Start today's session\" will follow the new priorities.";
+  } catch (error) {
+    message.hidden = false;
+    message.className = 'feedback';
+    message.textContent = error.message;
+  }
+}
+
 async function boot() {
   document.getElementById('scheduleDate').value = localDateString();
   try {
-    const [health, languages, sources, providers, calendarStatus] = await Promise.all([
+    const [health, languages, sources, providers] = await Promise.all([
       api('/api/health'),
       api('/api/languages'),
       api('/api/sources'),
       api('/api/providers'),
-      api('/api/calendar/status'),
     ]);
 
     document.getElementById('serverStatus').textContent = '● Local server connected';
@@ -370,10 +507,10 @@ async function boot() {
     const badge = document.getElementById('paidAiBadge');
     badge.textContent = `Paid AI: ${health.paid_ai_allowed ? 'ON' : 'OFF'}`;
     badge.classList.toggle('safe', !health.paid_ai_allowed);
+    state.languages = languages;
     renderLanguages(languages);
     renderSources(sources);
     renderProviders(providers);
-    renderCalendarStatus(calendarStatus);
   } catch (error) {
     document.getElementById('serverStatus').textContent = '● Server unavailable';
     document.getElementById('serverStatus').style.color = '#ff9aa7';
@@ -421,70 +558,37 @@ function stopRecording() {
   button.textContent = '🎙';
 }
 
-async function saveRecording() {
-  if (!state.recordingBlob) return;
-  const button = document.getElementById('saveRecording');
-  const feedback = document.getElementById('recordFeedback');
-  button.disabled = true;
-  button.textContent = 'Saving…';
+// Note: saving/analysing the writing and recording panels is handled by
+// learning.js (focuslyraAnalyseWriting / focuslyraSaveAndAnalyseRecording),
+// which also persists AI feedback. There is intentionally no second, simpler
+// handler here — an earlier version of this file had one, and the two had
+// to fight over the same button via stopImmediatePropagation().
 
-  const form = new FormData();
-  form.append('file', state.recordingBlob, 'speaking.webm');
-  form.append('language_code', 'es-ES');
-  form.append('activity', 'hotel-roleplay');
-
+async function applyTodaySession(target) {
+  const subtitle = document.getElementById('pageSubtitle');
   try {
-    const result = await api('/api/recordings', { method: 'POST', body: form });
-    feedback.hidden = false;
-    feedback.className = 'feedback good';
-    feedback.innerHTML = `<strong>Saved.</strong><br>${escapeHtml(result.recording.relative_audio_path)}<br><span class="muted small">AI transcription and pronunciation analysis will attach to this same recording in a later phase.</span>`;
-    button.textContent = '✓ Saved';
+    const today = await api('/api/study/today');
+    state.currentLanguageCode = today.language.code;
+    state.sessionDurationMinutes = target === 'minimum' ? today.minimum_session_minutes : today.normal_session_minutes;
+    setView('study');
+    if (target === 'minimum') {
+      subtitle.textContent = `10-minute mode: one useful ${today.language.name} speaking task + short review. No backlog. (~${state.sessionDurationMinutes} min)`;
+    } else {
+      subtitle.textContent = `Today: ${today.language.flag} ${today.language.name} · ~${state.sessionDurationMinutes} min suggested · target ${today.language.target_variety}.`;
+    }
   } catch (error) {
-    feedback.hidden = false;
-    feedback.className = 'feedback';
-    feedback.textContent = `Could not save recording: ${error.message}`;
-    button.disabled = false;
-    button.textContent = 'Try save again';
-  }
-}
-
-async function saveWriting() {
-  const text = document.getElementById('writingInput').value.trim();
-  const resultBox = document.getElementById('writingResult');
-  if (!text) {
-    resultBox.hidden = false;
-    resultBox.textContent = 'Write something first. The messy first draft is useful data.';
-    return;
-  }
-
-  try {
-    const result = await api('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        language_code: 'es-ES',
-        mode: 'writing',
-        writing: text,
-        metadata: { exercise: 'describe-morning' },
-      }),
-    });
-    resultBox.hidden = false;
-    resultBox.className = 'feedback good';
-    resultBox.innerHTML = `<strong>Original saved.</strong> Session #${result.session_id}.<br><span class="muted small">AI correction will later create a separate natural version without overwriting this text.</span>`;
-  } catch (error) {
-    resultBox.hidden = false;
-    resultBox.textContent = `Could not save: ${error.message}`;
+    setView('study');
+    subtitle.textContent = `Could not load today's plan automatically (${error.message}). Add an active language in Settings → Languages.`;
   }
 }
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
 document.querySelectorAll('.mode-tab').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+document.querySelectorAll('.sub-tab[data-settings-tab]').forEach(button => button.addEventListener('click', () => setSettingsTab(button.dataset.settingsTab)));
+document.querySelectorAll('.sub-tab[data-memory-tab]').forEach(button => button.addEventListener('click', () => setMemoryTab(button.dataset.memoryTab)));
 
-document.getElementById('startSession').addEventListener('click', () => setView('study'));
-document.getElementById('quickTen').addEventListener('click', () => {
-  setView('study');
-  document.getElementById('pageSubtitle').textContent = '10-minute mode: one useful speaking task + short review. No backlog.';
-});
+document.getElementById('startSession').addEventListener('click', () => applyTodaySession('normal'));
+document.getElementById('quickTen').addEventListener('click', () => applyTodaySession('minimum'));
 document.getElementById('makeInteresting').addEventListener('click', () => {
   setView('study');
   document.getElementById('pageSubtitle').textContent = 'Same learning targets, different wrapper: roleplay mode selected.';
@@ -503,14 +607,15 @@ document.getElementById('recordButton').addEventListener('click', async () => {
     document.getElementById('recordStatus').textContent = `Microphone error: ${error.message}`;
   }
 });
-document.getElementById('saveRecording').addEventListener('click', saveRecording);
-document.getElementById('saveWriting').addEventListener('click', saveWriting);
 document.getElementById('reviewReveal').addEventListener('click', () => document.getElementById('reviewAnswer').hidden = false);
 document.getElementById('demoListen').addEventListener('click', () => {
   const box = document.getElementById('listenDemoResult');
   box.hidden = false;
   box.innerHTML = '<strong>Flow:</strong> play audio → learner answers → reveal transcript → compare → create evidence event. Generated/cached audio comes in the speech phase.';
 });
+
+document.getElementById('profileForm').addEventListener('submit', saveProfileSettings);
+document.getElementById('saveLanguageSettings').addEventListener('click', saveLanguageSettings);
 
 document.getElementById('uploadCalendarCredentials').addEventListener('click', uploadCalendarCredentials);
 document.getElementById('connectCalendar').addEventListener('click', connectCalendar);

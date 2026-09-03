@@ -42,43 +42,27 @@
   };
 
   function injectShell() {
-    if (document.getElementById('voiceSettings')) return;
+    // Voices now lives inside Settings → Voices as a sub-panel (see
+    // index.html #settings-voices), instead of owning its own top-level
+    // sidebar item and view section. This keeps the sidebar to daily-use
+    // screens and groups every "set once" screen under Settings.
+    const host = document.getElementById('voiceSettingsHost');
+    if (!host || host.dataset.wired) return;
+    host.dataset.wired = '1';
 
-    if (typeof pageMeta !== 'undefined') {
-      pageMeta.voiceSettings = ['Voice settings', 'Choose the voice engine and sound you want for every language.'];
-    }
-
-    const providersButton = document.querySelector('.nav-button[data-view="providers"]');
-    if (providersButton) {
-      const button = document.createElement('button');
-      button.className = 'nav-button';
-      button.dataset.view = 'voiceSettings';
-      button.textContent = '🔊 Voices';
-      providersButton.before(button);
-      button.addEventListener('click', () => {
-        setView('voiceSettings');
-        loadVoiceSettings().catch(console.error);
-      });
-    }
-
-    const providers = document.getElementById('providers');
-    if (providers) {
-      const section = document.createElement('section');
-      section.id = 'voiceSettings';
-      section.className = 'view';
-      section.innerHTML = `
-        <div class="section-heading">
+    host.innerHTML = `
+      <article class="card">
+        <div class="section-heading compact">
           <div>
-            <h2>Voice profiles</h2>
-            <p>Each language can use its own engine, reference voice, conversation voice and listening voice.</p>
+            <h3>Voice profiles</h3>
+            <p class="muted">Each language can use its own engine, reference voice, conversation voice and listening voice.</p>
           </div>
           <button id="saveVoiceProfiles" class="primary">Save voice profiles</button>
         </div>
         <div id="voiceSettingsMessage" class="feedback" hidden></div>
-        <div id="voiceProfileGrid" class="voice-profile-grid"><span class="muted">Loading voices…</span></div>`;
-      providers.before(section);
-      section.querySelector('#saveVoiceProfiles').addEventListener('click', saveVoiceSettings);
-    }
+        <div id="voiceProfileGrid" class="voice-profile-grid"><span class="muted">Loading voices…</span></div>
+      </article>`;
+    host.querySelector('#saveVoiceProfiles').addEventListener('click', saveVoiceSettings);
 
     const style = document.createElement('style');
     style.textContent = `
@@ -269,15 +253,26 @@
     }
   }
 
-  injectShell();
-  loadVoiceSettings().catch(error => {
-    const grid = document.getElementById('voiceProfileGrid');
-    if (grid) grid.innerHTML = `<span class="muted">${escapeHtml(error.message)}</span>`;
-  });
+  window.FocuslyraVoice.reload = async function reload() {
+    injectShell();
+    try {
+      await loadVoiceSettings();
+    } catch (error) {
+      const grid = document.getElementById('voiceProfileGrid');
+      if (grid) grid.innerHTML = `<span class="muted">${escapeHtml(error.message)}</span>`;
+    }
+  };
+
+  // Voice loading/rendering happens on demand when Settings → Voices is
+  // opened (app.js calls FocuslyraVoice.reload()), not eagerly on every
+  // page load — but getVoice()/getProfile() must work for study playback
+  // even before that tab is ever opened, so preferences are fetched once
+  // up front regardless.
+  api('/api/voice/preferences').then(preferences => { voiceState.preferences = preferences; }).catch(() => {});
 
   if ('speechSynthesis' in window) {
     speechSynthesis.addEventListener?.('voiceschanged', () => {
-      if (document.getElementById('voiceSettings')?.classList.contains('active')) renderVoiceProfiles();
+      if (document.getElementById('settings-voices')?.classList.contains('active')) renderVoiceProfiles();
     });
   }
 })();

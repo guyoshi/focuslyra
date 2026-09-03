@@ -4,8 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .runtime import from_storable_path, legacy_media_root, user_media_dir
+
 ROOT = Path(__file__).resolve().parents[1]
-RECORDINGS_DIR = ROOT / "media" / "recordings"
+
+
+def _recording_dirs() -> list[Path]:
+    """User-scoped recordings first, then the pre-multiuser flat layout."""
+    return [user_media_dir() / "recordings", legacy_media_root() / "recordings"]
 
 
 class PronunciationServiceError(RuntimeError):
@@ -34,15 +40,16 @@ def pronunciation_status() -> dict[str, Any]:
 def _find_recording(recording_id: str) -> tuple[Path, dict[str, Any]]:
     if not recording_id or any(ch not in "0123456789abcdef" for ch in recording_id.lower()):
         raise PronunciationServiceError("Invalid recording id.")
-    for metadata_path in RECORDINGS_DIR.glob(f"*/{recording_id}.json"):
-        try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise PronunciationServiceError("Recording metadata is damaged.") from exc
-        audio_path = ROOT / str(metadata.get("relative_audio_path") or "")
-        if not audio_path.exists():
-            raise PronunciationServiceError("Recording audio file is missing.")
-        return audio_path, metadata
+    for recordings_dir in _recording_dirs():
+        for metadata_path in recordings_dir.glob(f"*/{recording_id}.json"):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise PronunciationServiceError("Recording metadata is damaged.") from exc
+            audio_path = from_storable_path(str(metadata.get("relative_audio_path") or ""))
+            if not audio_path.exists():
+                raise PronunciationServiceError("Recording audio file is missing.")
+            return audio_path, metadata
     raise PronunciationServiceError("Recording not found.")
 
 

@@ -18,20 +18,16 @@
       </div>
 
       <nav class="nav" aria-label="Main navigation">
-        <div class="nav-group-label">Learn</div>
         <button class="nav-button active" data-view="dashboard">⌂ Dashboard</button>
         <button class="nav-button" data-view="study">▶ Study</button>
         <button class="nav-button" data-view="review">↻ Review</button>
-        <button class="nav-button" data-view="progress">◫ Progress</button>
-
-        <div class="nav-group-label">Library</div>
-        <button class="nav-button" data-view="concepts">◉ Concepts</button>
         <button class="nav-button" data-view="memory">▣ Memory</button>
-
-        <div class="nav-group-label">Settings</div>
-        <button class="nav-button" data-view="calendar">▦ Calendar</button>
-        <button class="nav-button" data-view="providers">⚙ AI</button>
+        <button class="nav-button" data-view="progress">◫ Progress</button>
       </nav>
+
+      <div class="nav nav-settings" aria-label="Settings navigation">
+        <button class="nav-button" data-view="settings">⚙ Settings</button>
+      </div>
 
       <div class="sidebar-foot">
         <span id="serverStatus" class="status-dot">● Connecting</span>
@@ -64,17 +60,19 @@
 
           <article class="card today-card">
             <h3>Suggested rhythm</h3>
-            <div class="activity"><span>🇪🇸 Spanish</span><strong>18m</strong></div>
-            <div class="activity"><span>🇬🇧 English</span><strong>14m</strong></div>
-            <div class="activity"><span>🇯🇵 Japanese</span><strong>10m</strong></div>
-            <p class="muted small">The learning engine will replace these static values with evidence-based planning.</p>
+            <div id="suggestedRhythm">
+              <div class="activity"><span>🇪🇸 Spanish</span><strong>18m</strong></div>
+              <div class="activity"><span>🇬🇧 English</span><strong>14m</strong></div>
+              <div class="activity"><span>🇯🇵 Japanese</span><strong>10m</strong></div>
+            </div>
+            <p class="muted small">The learning engine will replace these static values with evidence-based planning. Pressing Start already picks today's highest-priority active language for real.</p>
           </article>
         </div>
 
         <div class="section-heading">
           <div>
             <h2>Your languages</h2>
-            <p>Active, maintenance and parked languages can change without changing the application.</p>
+            <p>Active, maintenance and parked languages can change without changing the application. Manage priority/status in Settings → Languages.</p>
           </div>
         </div>
         <div id="languageGrid" class="language-grid"></div>
@@ -95,6 +93,7 @@
               <span class="badge">🇪🇸 SPANISH • ROLEPLAY</span>
               <h2>Your hotel reservation has disappeared.</h2>
               <p class="prompt">Speak to the receptionist. Explain that you booked online, give your name, ask them to check again, and react naturally if they say the hotel is full.</p>
+              <p class="muted small">🧪 Demo scenario — dynamic exercise generation per language is on the roadmap. Your save/analysis is still tagged with today's real target language below.</p>
               <div class="recording-zone">
                 <button id="recordButton" class="record-button" aria-label="Record audio">🎙</button>
                 <p id="recordStatus" class="muted">Press to record. Press again to stop.</p>
@@ -158,34 +157,6 @@
         </div>
       </section>
 
-      <section id="concepts" class="view">
-        <article class="card">
-          <div class="section-heading compact">
-            <div>
-              <h2>Global concept memory</h2>
-              <p>One meaning can serve every language. Emoji first, generated image only when useful.</p>
-            </div>
-            <span class="badge">CONCEPT #00042</span>
-          </div>
-          <div class="concept-layout">
-            <div class="concept-visual">🐕</div>
-            <div>
-              <h2>DOG</h2>
-              <div class="concept-words">
-                <div><small>🇵🇹 Portuguese</small><strong>cão</strong></div>
-                <div><small>🇬🇧 English</small><strong>dog</strong></div>
-                <div><small>🇪🇸 Spanish</small><strong>perro</strong></div>
-                <div><small>🇮🇹 Italian</small><strong>cane</strong></div>
-                <div><small>🇫🇷 French</small><strong>chien</strong></div>
-                <div><small>🇩🇪 German</small><strong>Hund</strong></div>
-                <div><small>🇯🇵 Japanese</small><strong>犬 / いぬ</strong></div>
-                <div><small>🇦🇪 Arabic</small><strong>كلب</strong></div>
-              </div>
-            </div>
-          </div>
-        </article>
-      </section>
-
       <section id="review" class="view">
         <article class="card review-card">
           <span class="badge">🇪🇸 SPEAKING RECALL</span>
@@ -205,11 +176,47 @@
       <section id="memory" class="view">
         <div class="section-heading">
           <div>
-            <h2>Memory sources</h2>
-            <p>Keep canonical repositories separate. Focuslyra reads selected content without creating stale copies.</p>
+            <h2>Memory</h2>
+            <p>Reusable meaning and external knowledge, kept separate from AI-generated exercises.</p>
           </div>
         </div>
-        <div id="sourceGrid" class="source-grid"></div>
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-memory-tab="sources">Sources</button>
+          <button class="sub-tab" data-memory-tab="concepts">Concepts</button>
+        </div>
+
+        <div id="memory-sources" class="sub-panel active">
+          <p class="muted">Keep canonical repositories separate. Focuslyra reads selected content without creating stale copies.</p>
+          <div id="sourceGrid" class="source-grid"></div>
+        </div>
+
+        <div id="memory-concepts" class="sub-panel">
+          <article class="card">
+            <div class="section-heading compact">
+              <div>
+                <h2>Global concept memory</h2>
+                <p>One meaning can serve every language. Emoji first, generated image only when useful.</p>
+              </div>
+              <span class="badge">CONCEPT #00042</span>
+            </div>
+            <div class="concept-layout">
+              <div class="concept-visual">🐕</div>
+              <div>
+                <h2>DOG</h2>
+                <div class="concept-words">
+                  <div><small>🇵🇹 Portuguese</small><strong>cão</strong></div>
+                  <div><small>🇬🇧 English</small><strong>dog</strong></div>
+                  <div><small>🇪🇸 Spanish</small><strong>perro</strong></div>
+                  <div><small>🇮🇹 Italian</small><strong>cane</strong></div>
+                  <div><small>🇫🇷 French</small><strong>chien</strong></div>
+                  <div><small>🇩🇪 German</small><strong>Hund</strong></div>
+                  <div><small>🇯🇵 Japanese</small><strong>犬 / いぬ</strong></div>
+                  <div><small>🇦🇪 Arabic</small><strong>كلب</strong></div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section id="progress" class="view">
@@ -227,73 +234,148 @@
         </article>
       </section>
 
-      <section id="calendar" class="view">
+      <section id="settings" class="view">
         <div class="section-heading">
           <div>
-            <h2>Google Calendar</h2>
-            <p>Read your availability, then write study sessions only to the calendar created by Focuslyra.</p>
-          </div>
-          <span id="calendarStateBadge" class="badge">NOT CONNECTED</span>
-        </div>
-
-        <div class="calendar-grid">
-          <article class="card">
-            <h3>1. Connect Google</h3>
-            <p id="calendarStatusText" class="muted">Checking local Google Calendar configuration…</p>
-            <div id="calendarCredentialSetup">
-              <label class="file-label" for="calendarCredentials">Google Desktop OAuth credentials.json</label>
-              <input id="calendarCredentials" type="file" accept="application/json,.json" />
-              <button id="uploadCalendarCredentials" class="ghost">Upload credentials locally</button>
-            </div>
-            <div class="calendar-actions">
-              <button id="connectCalendar" class="primary">Connect Google Calendar</button>
-              <button id="disconnectCalendar" class="ghost">Disconnect</button>
-            </div>
-            <div id="calendarConnectionResult" class="feedback" hidden></div>
-            <p class="muted small">Credentials and OAuth tokens stay under <code>private/</code> on this PC and are excluded from Git.</p>
-          </article>
-
-          <article class="card">
-            <h3>2. Availability calendars</h3>
-            <p class="muted">Focuslyra checks these calendars for busy periods. It does not edit them.</p>
-            <div id="calendarList" class="calendar-check-list"><span class="muted small">Connect Google first.</span></div>
-            <button id="saveAvailabilityCalendars" class="ghost" disabled>Save availability selection</button>
-          </article>
-        </div>
-
-        <div class="calendar-grid second-row">
-          <article class="card">
-            <h3>3. Smart scheduling</h3>
-            <div class="calendar-form-grid">
-              <label>Date<input id="scheduleDate" type="date" /></label>
-              <label>Duration<input id="scheduleDuration" type="number" min="5" max="240" value="45" /></label>
-              <label>From<input id="scheduleStart" type="time" value="08:00" /></label>
-              <label>Until<input id="scheduleEnd" type="time" value="19:00" /></label>
-            </div>
-            <div class="calendar-actions">
-              <button id="findFreeSlots" class="ghost">Find free slots</button>
-              <button id="smartSchedule" class="primary">Schedule earliest free slot</button>
-            </div>
-            <div id="freeSlotList" class="slot-list"></div>
-            <div id="calendarScheduleResult" class="feedback" hidden></div>
-          </article>
-
-          <article class="card">
-            <h3>Upcoming Focuslyra sessions</h3>
-            <div id="upcomingCalendarEvents" class="upcoming-events"><span class="muted small">No calendar data loaded yet.</span></div>
-            <p class="muted small">Study events use Google Calendar popup reminders 10 minutes before and at start time. Phone delivery still depends on Google Calendar notifications being enabled on the phone.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="providers" class="view">
-        <div class="section-heading">
-          <div>
-            <h2>AI providers</h2>
-            <p>The learning system must remain usable even when every paid provider is disabled.</p>
+            <h2>Settings</h2>
+            <p>Everything you set up once and mostly forget lives here — not mixed in with daily study.</p>
           </div>
         </div>
-        <div id="providerGrid" class="provider-grid"></div>
+
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-settings-tab="profile">👤 Profile</button>
+          <button class="sub-tab" data-settings-tab="languages">🗺 Languages</button>
+          <button class="sub-tab" data-settings-tab="voices">🔊 Voices</button>
+          <button class="sub-tab" data-settings-tab="providers">🧠 AI providers</button>
+          <button class="sub-tab" data-settings-tab="calendar">📅 Calendar</button>
+        </div>
+
+        <div id="settings-profile" class="sub-panel active">
+          <article class="card">
+            <h3>Learner profile</h3>
+            <p class="muted">Used by the local learning engine on every analysis — not just cosmetic.</p>
+            <form id="profileForm" class="settings-form">
+              <div class="form-grid">
+                <label>Name
+                  <input type="text" name="learner_name" required />
+                </label>
+                <label>Native language
+                  <input type="text" name="native_language" placeholder="pt-BR" required />
+                </label>
+                <label>Normal session (minutes)
+                  <input type="number" name="normal_session_minutes" min="5" max="180" required />
+                </label>
+                <label>Minimum session (minutes)
+                  <input type="number" name="minimum_session_minutes" min="5" max="120" required />
+                </label>
+                <label>Accent importance
+                  <select name="accent_importance">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label class="span-2">Attention strategy
+                  <input type="text" name="attention_strategy" placeholder="change activity while preserving the learning target" />
+                </label>
+              </div>
+              <fieldset class="focus-fieldset">
+                <legend>Learning focus</legend>
+                <label><input type="checkbox" name="learning_focus" value="speaking" /> Speaking</label>
+                <label><input type="checkbox" name="learning_focus" value="listening" /> Listening</label>
+                <label><input type="checkbox" name="learning_focus" value="reading" /> Reading</label>
+                <label><input type="checkbox" name="learning_focus" value="writing" /> Writing</label>
+              </fieldset>
+              <button type="submit" class="primary">Save profile</button>
+            </form>
+            <div id="profileSettingsMessage" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="settings-languages" class="sub-panel">
+          <article class="card">
+            <h3>Languages</h3>
+            <p class="muted">Priority decides which active language "Start today's session" opens. Lower number = higher priority.</p>
+            <div id="languageSettingsGrid" class="language-settings-grid"></div>
+            <button id="saveLanguageSettings" class="primary">Save language settings</button>
+            <div id="languageSettingsMessage" class="feedback" hidden></div>
+          </article>
+        </div>
+
+        <div id="settings-voices" class="sub-panel">
+          <div id="voiceSettingsHost">
+            <span class="muted">Loading voices…</span>
+          </div>
+        </div>
+
+        <div id="settings-providers" class="sub-panel">
+          <div class="section-heading compact">
+            <div>
+              <h3>AI providers</h3>
+              <p class="muted">The learning system must remain usable even when every paid provider is disabled.</p>
+            </div>
+          </div>
+          <div id="providerGrid" class="provider-grid"></div>
+        </div>
+
+        <div id="settings-calendar" class="sub-panel">
+          <div class="section-heading compact">
+            <div>
+              <h3>Google Calendar</h3>
+              <p class="muted">Read your availability, then write study sessions only to the calendar created by Focuslyra.</p>
+            </div>
+            <span id="calendarStateBadge" class="badge">NOT CONNECTED</span>
+          </div>
+
+          <div class="calendar-grid">
+            <article class="card">
+              <h3>1. Connect Google</h3>
+              <p id="calendarStatusText" class="muted">Checking local Google Calendar configuration…</p>
+              <div id="calendarCredentialSetup">
+                <label class="file-label" for="calendarCredentials">Google Desktop OAuth credentials.json</label>
+                <input id="calendarCredentials" type="file" accept="application/json,.json" />
+                <button id="uploadCalendarCredentials" class="ghost">Upload credentials locally</button>
+              </div>
+              <div class="calendar-actions">
+                <button id="connectCalendar" class="primary">Connect Google Calendar</button>
+                <button id="disconnectCalendar" class="ghost">Disconnect</button>
+              </div>
+              <div id="calendarConnectionResult" class="feedback" hidden></div>
+              <p class="muted small">Credentials and OAuth tokens stay under <code>private/</code> on this PC and are excluded from Git.</p>
+            </article>
+
+            <article class="card">
+              <h3>2. Availability calendars</h3>
+              <p class="muted">Focuslyra checks these calendars for busy periods. It does not edit them.</p>
+              <div id="calendarList" class="calendar-check-list"><span class="muted small">Connect Google first.</span></div>
+              <button id="saveAvailabilityCalendars" class="ghost" disabled>Save availability selection</button>
+            </article>
+          </div>
+
+          <div class="calendar-grid second-row">
+            <article class="card">
+              <h3>3. Smart scheduling</h3>
+              <div class="calendar-form-grid">
+                <label>Date<input id="scheduleDate" type="date" /></label>
+                <label>Duration<input id="scheduleDuration" type="number" min="5" max="240" value="45" /></label>
+                <label>From<input id="scheduleStart" type="time" value="08:00" /></label>
+                <label>Until<input id="scheduleEnd" type="time" value="19:00" /></label>
+              </div>
+              <div class="calendar-actions">
+                <button id="findFreeSlots" class="ghost">Find free slots</button>
+                <button id="smartSchedule" class="primary">Schedule earliest free slot</button>
+              </div>
+              <div id="freeSlotList" class="slot-list"></div>
+              <div id="calendarScheduleResult" class="feedback" hidden></div>
+            </article>
+
+            <article class="card">
+              <h3>Upcoming Focuslyra sessions</h3>
+              <div id="upcomingCalendarEvents" class="upcoming-events"><span class="muted small">No calendar data loaded yet.</span></div>
+              <p class="muted small">Study events use Google Calendar popup reminders 10 minutes before and at start time. Phone delivery still depends on Google Calendar notifications being enabled on the phone.</p>
+            </article>
+          </div>
+        </div>
       </section>
     </main>
   </div>

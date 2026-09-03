@@ -141,9 +141,15 @@ async function attachAcousticButton(container, recordingId) {
   }
 }
 
+function activeLanguageCode() {
+  // Falls back to Spanish only when no priority language could be loaded yet
+  // (e.g. /api/study/today failed) — otherwise this reflects the language
+  // Start today's session actually picked.
+  return state.currentLanguageCode || 'es-ES';
+}
+
 async function focuslyraAnalyseWriting(event) {
   event.preventDefault();
-  event.stopImmediatePropagation();
   const text = document.getElementById('writingInput').value.trim();
   const resultBox = document.getElementById('writingResult');
   const button = document.getElementById('saveWriting');
@@ -154,6 +160,7 @@ async function focuslyraAnalyseWriting(event) {
     return;
   }
 
+  const languageCode = activeLanguageCode();
   button.disabled = true;
   button.textContent = 'Qwen is analysing…';
   resultBox.hidden = false;
@@ -165,14 +172,14 @@ async function focuslyraAnalyseWriting(event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        language_code: 'es-ES',
+        language_code: languageCode,
         modality: 'writing',
         text,
         exercise_prompt: 'Describe your morning in 5–8 sentences.',
         metadata: { exercise: 'describe-morning', source: 'study-ui' },
       }),
     });
-    renderLearningFeedback(resultBox, result, 'es-ES');
+    renderLearningFeedback(resultBox, result, languageCode);
     button.textContent = '✓ Analysed + remembered';
   } catch (error) {
     resultBox.hidden = false;
@@ -185,9 +192,9 @@ async function focuslyraAnalyseWriting(event) {
 
 async function focuslyraSaveAndAnalyseRecording(event) {
   event.preventDefault();
-  event.stopImmediatePropagation();
   if (!state.recordingBlob) return;
 
+  const languageCode = activeLanguageCode();
   const button = document.getElementById('saveRecording');
   const feedback = document.getElementById('recordFeedback');
   button.disabled = true;
@@ -195,7 +202,7 @@ async function focuslyraSaveAndAnalyseRecording(event) {
 
   const form = new FormData();
   form.append('file', state.recordingBlob, 'speaking.webm');
-  form.append('language_code', 'es-ES');
+  form.append('language_code', languageCode);
   form.append('activity', 'Hotel reservation roleplay: explain the booking, ask them to check again, react if full.');
 
   try {
@@ -209,7 +216,7 @@ async function focuslyraSaveAndAnalyseRecording(event) {
 
     try {
       const analysed = await api(`/api/learning/analyse-recording/${encodeURIComponent(recordingId)}`, { method: 'POST' });
-      renderLearningFeedback(feedback, analysed, 'es-ES', analysed.transcript?.text || '');
+      renderLearningFeedback(feedback, analysed, languageCode, analysed.transcript?.text || '');
       await attachAcousticButton(feedback, recordingId);
       button.textContent = '✓ Analysed + remembered';
     } catch (analysisError) {
@@ -294,9 +301,9 @@ async function injectLearningEngineStatus() {
 }
 
 const focuslyraWriteButton = document.getElementById('saveWriting');
-if (focuslyraWriteButton) focuslyraWriteButton.addEventListener('click', focuslyraAnalyseWriting, { capture: true });
+if (focuslyraWriteButton) focuslyraWriteButton.addEventListener('click', focuslyraAnalyseWriting);
 const focuslyraRecordingButton = document.getElementById('saveRecording');
-if (focuslyraRecordingButton) focuslyraRecordingButton.addEventListener('click', focuslyraSaveAndAnalyseRecording, { capture: true });
+if (focuslyraRecordingButton) focuslyraRecordingButton.addEventListener('click', focuslyraSaveAndAnalyseRecording);
 
 injectLearningEngineStatus();
 injectVoiceCalibration();
