@@ -10,7 +10,7 @@ echo ==================================================
 echo.
 
 call :find_python
-if defined PY_CMD goto :python_ready
+if defined PY_EXE goto :python_ready
 
 echo [Focuslyra] Python 3.11+ was not found.
 echo [Focuslyra] Trying to install Python 3.12 automatically...
@@ -22,23 +22,18 @@ if errorlevel 1 goto :no_winget
 winget install --id Python.Python.3.12 -e --scope user --accept-package-agreements --accept-source-agreements
 if errorlevel 1 goto :python_install_failed
 
-rem The current terminal may not receive the updated PATH immediately,
-rem so check both launchers and the standard per-user install path.
+rem The current terminal may not receive the updated PATH immediately.
+rem Search again, including the normal per-user installation folder.
 call :find_python
-if defined PY_CMD goto :python_ready
+if defined PY_EXE goto :python_ready
 
-if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
-  set "PY_CMD=\"%LocalAppData%\Programs\Python\Python312\python.exe\""
-  goto :python_ready
-)
-
-echo [Focuslyra] Python appears to have been installed, but this terminal
-echo [Focuslyra] cannot see it yet. Close this window and run run.bat again.
+echo [Focuslyra] Python appears to have been installed, but Focuslyra
+echo [Focuslyra] cannot locate python.exe yet. Close this window and run run.bat again.
 goto :failed
 
 :python_ready
-echo [Focuslyra] Using Python: %PY_CMD%
-%PY_CMD% -c "import sys; print('[Focuslyra] Python', sys.version.split()[0]); raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
+echo [Focuslyra] Using Python: %PY_EXE% %PY_ARGS%
+"%PY_EXE%" %PY_ARGS% -c "import sys; print('[Focuslyra] Python', sys.version.split()[0]); raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
 if errorlevel 1 (
   echo [ERROR] Focuslyra requires Python 3.11 or newer.
   goto :failed
@@ -46,7 +41,7 @@ if errorlevel 1 (
 
 if not exist ".venv\Scripts\python.exe" (
   echo [Focuslyra] Creating local Python environment...
-  %PY_CMD% -m venv .venv
+  "%PY_EXE%" %PY_ARGS% -m venv .venv
   if errorlevel 1 (
     echo [ERROR] Could not create the virtual environment.
     goto :failed
@@ -82,31 +77,37 @@ echo [Focuslyra] Paid AI remains OFF unless you explicitly enable it in .env.
 exit /b 0
 
 :find_python
-set "PY_CMD="
+set "PY_EXE="
+set "PY_ARGS="
 
 rem Prefer the Windows Python launcher when it points to a real modern Python.
 py -3.12 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if not errorlevel 1 (
-  set "PY_CMD=py -3.12"
+  set "PY_EXE=py"
+  set "PY_ARGS=-3.12"
   exit /b 0
 )
 
 py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if not errorlevel 1 (
-  set "PY_CMD=py -3"
+  set "PY_EXE=py"
+  set "PY_ARGS=-3"
   exit /b 0
 )
 
-rem `python.exe` may be only the Microsoft Store alias, so execute it to verify.
+rem python.exe may be only the Microsoft Store alias, so execute it to verify.
 python -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if not errorlevel 1 (
-  set "PY_CMD=python"
+  set "PY_EXE=python"
   exit /b 0
 )
 
+rem Search common per-user Python install paths directly. Store the path WITHOUT quotes;
+rem calls below add quotes exactly once, which avoids cmd treating \"...\" literally.
 for %%V in (314 313 312 311) do (
   if exist "%LocalAppData%\Programs\Python\Python%%V\python.exe" (
-    set "PY_CMD=\"%LocalAppData%\Programs\Python\Python%%V\python.exe\""
+    set "PY_EXE=%LocalAppData%\Programs\Python\Python%%V\python.exe"
+    set "PY_ARGS="
     exit /b 0
   )
 )
