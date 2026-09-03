@@ -25,6 +25,12 @@
 - [x] Provider status page.
 - [x] Windows/Unix setup and launch scripts.
 - [x] GitHub smoke-test workflow.
+- [x] Google Calendar OAuth foundation.
+- [x] Separate Focuslyra Google calendar creation.
+- [x] Free/busy availability lookup.
+- [x] Manual free-slot selection and study-event creation.
+- [x] Earliest-free-slot smart scheduling.
+- [x] Google Calendar reminders for scheduled study events.
 
 ## Phase 2 — Learning engine
 
@@ -35,6 +41,8 @@
 - [ ] Minimum-day planning logic.
 - [ ] Hidden retrieval targets.
 - [ ] Progress radar by skill.
+- [ ] Let the learning engine request calendar duration based on the day's study plan.
+- [ ] Optional user-approved automatic rescheduling policy.
 
 ## Phase 3 — Free/local AI
 
@@ -79,5 +87,6 @@
 - [ ] One-click setup/update beyond development scripts.
 - [ ] Optional encrypted/synchronised learner media.
 - [ ] Multi-user architecture investigation.
+- [ ] Google OAuth production/verification path for public distribution.
 - [ ] Branding/domain/trademark review.
 - [ ] Packaging as desktop/PWA.
