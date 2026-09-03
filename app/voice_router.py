@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 
 from .phase2_router import router as phase2_router
 from .tts_service import voice_catalog
+from .user_router import router as user_router
 from .voice_preferences import VoicePreferenceError, load_voice_preferences, save_voice_preferences
 
 # Main app already mounts this router once. Keep /api as the shared root so
-# voice settings and the learning-v2 modules can evolve without bloating main.py.
+# voice settings and the learning modules can evolve without bloating main.py.
 router = APIRouter(prefix="/api", tags=["api"])
 router.include_router(phase2_router)
+router.include_router(user_router)
 
 
 class VoicePreferencesPayload(BaseModel):
