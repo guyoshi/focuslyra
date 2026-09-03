@@ -5,6 +5,7 @@ const state = {
   recordingBlob: null,
   currentView: 'dashboard',
   currentMode: 'speak',
+  calendarStatus: null,
 };
 
 const pageMeta = {
@@ -14,6 +15,7 @@ const pageMeta = {
   review: ['Adaptive review', 'Recognition and production are different skills.'],
   memory: ['Memory sources', 'Use your own worlds and projects without copying stale files.'],
   progress: ['Progress', 'Measure abilities instead of lesson completion.'],
+  calendar: ['Calendar', 'Fit language study around real life, then let Google remind you.'],
   providers: ['AI providers', 'Local/free first. Paid intelligence is opt-in.'],
 };
 
@@ -28,12 +30,13 @@ function escapeHtml(value) {
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${response.status} ${text}`);
-  }
   const type = response.headers.get('content-type') || '';
-  return type.includes('application/json') ? response.json() : response.text();
+  const body = type.includes('application/json') ? await response.json() : await response.text();
+  if (!response.ok) {
+    const message = typeof body === 'object' && body?.detail ? body.detail : String(body);
+    throw new Error(message);
+  }
+  return body;
 }
 
 function setView(viewId) {
@@ -43,6 +46,7 @@ function setView(viewId) {
   const [title, subtitle] = pageMeta[viewId];
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSubtitle').textContent = subtitle;
+  if (viewId === 'calendar') refreshCalendar().catch(console.error);
 }
 
 function setMode(mode) {
@@ -114,13 +118,251 @@ function renderProviders(providers) {
     </article>`).join('');
 }
 
-async function boot() {
+function localDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function setCalendarMessage(message, good = false) {
+  const box = document.getElementById('calendarConnectionResult');
+  box.hidden = false;
+  box.className = good ? 'feedback good' : 'feedback';
+  box.textContent = message;
+}
+
+function setScheduleMessage(message, good = false) {
+  const box = document.getElementById('calendarScheduleResult');
+  box.hidden = false;
+  box.className = good ? 'feedback good' : 'feedback';
+  box.innerHTML = message;
+}
+
+function renderCalendarStatus(status) {
+  state.calendarStatus = status;
+  const badge = document.getElementById('calendarStateBadge');
+  const text = document.getElementById('calendarStatusText');
+  const connect = document.getElementById('connectCalendar');
+  const disconnect = document.getElementById('disconnectCalendar');
+
+  if (status.connected) {
+    badge.textContent = 'CONNECTED';
+    badge.classList.add('safe');
+    const calendarName = status.focuslyra_calendar?.summary || 'Focuslyra';
+    text.innerHTML = `Connected. Study sessions will be written to <strong>${escapeHtml(calendarName)}</strong>. Time zone: ${escapeHtml(status.timezone || '')}.`;
+    connect.disabled = true;
+    connect.textContent = '✓ Google connected';
+    disconnect.disabled = false;
+  } else if (status.credentials_configured) {
+    badge.textContent = 'READY TO CONNECT';
+    badge.classList.remove('safe');
+    text.textContent = 'OAuth credentials are stored locally. Authorise your Google account next.';
+    connect.disabled = false;
+    connect.textContent = 'Connect Google Calendar';
+    disconnect.disabled = true;
+  } else {
+    badge.textContent = 'SETUP NEEDED';
+    badge.classList.remove('safe');
+    text.textContent = 'First upload the Desktop OAuth credentials JSON downloaded from Google Cloud.';
+    connect.disabled = true;
+    connect.textContent = 'Connect Google Calendar';
+    disconnect.disabled = true;
+  }
+}
+
+function renderCalendarList(calendars) {
+  const host = document.getElementById('calendarList');
+  if (!calendars.length) {
+    host.innerHTML = '<span class="muted small">No calendars were returned by Google.</span>';
+    return;
+  }
+  host.innerHTML = calendars.map(calendar => `
+    <label class="calendar-check">
+      <input type="checkbox" value="${escapeHtml(calendar.id)}" ${calendar.selected || calendar.primary || calendar.focuslyra ? 'checked' : ''} />
+      <span><strong>${escapeHtml(calendar.summary)}</strong><small>${calendar.primary ? 'Primary · ' : ''}${calendar.focuslyra ? 'Focuslyra · ' : ''}${escapeHtml(calendar.timeZone || '')}</small></span>
+    </label>`).join('');
+  document.getElementById('saveAvailabilityCalendars').disabled = false;
+}
+
+function formatGoogleDateTime(eventPart) {
+  if (!eventPart) return '';
+  const raw = eventPart.dateTime || eventPart.date;
+  if (!raw) return '';
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleString([], { dateStyle: 'medium', timeStyle: eventPart.dateTime ? 'short' : undefined });
+}
+
+function renderUpcoming(events) {
+  const host = document.getElementById('upcomingCalendarEvents');
+  if (!events.length) {
+    host.innerHTML = '<span class="muted small">No upcoming Focuslyra sessions yet.</span>';
+    return;
+  }
+  host.innerHTML = events.map(event => `
+    <div class="calendar-event">
+      <div><strong>${escapeHtml(event.summary)}</strong><small>${escapeHtml(formatGoogleDateTime(event.start))}</small></div>
+      ${event.htmlLink ? `<a href="${escapeHtml(event.htmlLink)}" target="_blank" rel="noreferrer">Open</a>` : ''}
+    </div>`).join('');
+}
+
+async function refreshCalendar() {
+  const status = await api('/api/calendar/status');
+  renderCalendarStatus(status);
+  if (!status.connected) {
+    document.getElementById('calendarList').innerHTML = '<span class="muted small">Connect Google first.</span>';
+    document.getElementById('saveAvailabilityCalendars').disabled = true;
+    document.getElementById('upcomingCalendarEvents').innerHTML = '<span class="muted small">Connect Google first.</span>';
+    return;
+  }
+  const [calendars, upcoming] = await Promise.all([
+    api('/api/calendar/calendars'),
+    api('/api/calendar/upcoming'),
+  ]);
+  renderCalendarList(calendars);
+  renderUpcoming(upcoming);
+}
+
+async function uploadCalendarCredentials() {
+  const input = document.getElementById('calendarCredentials');
+  if (!input.files?.length) {
+    setCalendarMessage('Choose the credentials.json file first.');
+    return;
+  }
+  const button = document.getElementById('uploadCalendarCredentials');
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  const form = new FormData();
+  form.append('file', input.files[0], input.files[0].name);
   try {
-    const [health, languages, sources, providers] = await Promise.all([
+    await api('/api/calendar/credentials', { method: 'POST', body: form });
+    setCalendarMessage('Google OAuth credentials saved locally. Now click Connect Google Calendar.', true);
+    await refreshCalendar();
+  } catch (error) {
+    setCalendarMessage(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Upload credentials locally';
+  }
+}
+
+async function connectCalendar() {
+  const button = document.getElementById('connectCalendar');
+  button.disabled = true;
+  button.textContent = 'Waiting for Google authorisation…';
+  setCalendarMessage('A Google authorisation page should open. Choose your account and approve Focuslyra.');
+  try {
+    await api('/api/calendar/connect', { method: 'POST' });
+    setCalendarMessage('Google Calendar connected. Focuslyra created/located its own study calendar.', true);
+    await refreshCalendar();
+  } catch (error) {
+    setCalendarMessage(error.message);
+    button.disabled = false;
+    button.textContent = 'Connect Google Calendar';
+  }
+}
+
+async function disconnectCalendar() {
+  await api('/api/calendar/disconnect', { method: 'POST' });
+  setCalendarMessage('Google Calendar disconnected. The Focuslyra calendar itself was left intact in Google.', true);
+  await refreshCalendar();
+}
+
+async function saveAvailabilityCalendars() {
+  const ids = [...document.querySelectorAll('#calendarList input[type="checkbox"]:checked')].map(input => input.value);
+  try {
+    await api('/api/calendar/availability-calendars', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ calendar_ids: ids }),
+    });
+    setCalendarMessage(`Availability will be checked against ${ids.length} calendar${ids.length === 1 ? '' : 's'}.`, true);
+  } catch (error) {
+    setCalendarMessage(error.message);
+  }
+}
+
+function scheduleParameters() {
+  return {
+    target_date: document.getElementById('scheduleDate').value,
+    duration_minutes: Number(document.getElementById('scheduleDuration').value || 45),
+    window_start: document.getElementById('scheduleStart').value || '08:00',
+    window_end: document.getElementById('scheduleEnd').value || '19:00',
+  };
+}
+
+async function findFreeSlots() {
+  const params = scheduleParameters();
+  const query = new URLSearchParams({
+    target_date: params.target_date,
+    duration_minutes: String(params.duration_minutes),
+    window_start: params.window_start,
+    window_end: params.window_end,
+  });
+  const host = document.getElementById('freeSlotList');
+  host.innerHTML = '<span class="muted small">Checking your calendars…</span>';
+  try {
+    const result = await api(`/api/calendar/free-slots?${query}`);
+    if (!result.slots.length) {
+      host.innerHTML = '<span class="muted small">No free study slot was found in this window.</span>';
+      return;
+    }
+    host.innerHTML = result.slots.map(slot => {
+      const start = new Date(slot.start);
+      const end = new Date(slot.end);
+      const label = `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}–${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+      return `<button class="slot-button" data-start="${escapeHtml(slot.start)}">${escapeHtml(label)}</button>`;
+    }).join('');
+    host.querySelectorAll('.slot-button').forEach(button => button.addEventListener('click', () => createEventAt(button.dataset.start)));
+  } catch (error) {
+    host.innerHTML = `<span class="muted small">${escapeHtml(error.message)}</span>`;
+  }
+}
+
+async function createEventAt(start) {
+  const params = scheduleParameters();
+  try {
+    const result = await api('/api/calendar/study-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start, duration_minutes: params.duration_minutes }),
+    });
+    const link = result.event?.htmlLink ? ` <a href="${escapeHtml(result.event.htmlLink)}" target="_blank" rel="noreferrer">Open in Google Calendar</a>` : '';
+    setScheduleMessage(`<strong>Scheduled.</strong> Google Calendar will hold the session and reminders.${link}`, true);
+    await refreshCalendar();
+  } catch (error) {
+    setScheduleMessage(escapeHtml(error.message));
+  }
+}
+
+async function smartSchedule() {
+  const params = scheduleParameters();
+  try {
+    const result = await api('/api/calendar/study-events/smart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const start = new Date(result.slot.start).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const link = result.event?.htmlLink ? ` <a href="${escapeHtml(result.event.htmlLink)}" target="_blank" rel="noreferrer">Open event</a>` : '';
+    setScheduleMessage(`<strong>Study scheduled for ${escapeHtml(start)}.</strong>${link}`, true);
+    await refreshCalendar();
+  } catch (error) {
+    setScheduleMessage(escapeHtml(error.message));
+  }
+}
+
+async function boot() {
+  document.getElementById('scheduleDate').value = localDateString();
+  try {
+    const [health, languages, sources, providers, calendarStatus] = await Promise.all([
       api('/api/health'),
       api('/api/languages'),
       api('/api/sources'),
       api('/api/providers'),
+      api('/api/calendar/status'),
     ]);
 
     document.getElementById('serverStatus').textContent = '● Local server connected';
@@ -131,6 +373,7 @@ async function boot() {
     renderLanguages(languages);
     renderSources(sources);
     renderProviders(providers);
+    renderCalendarStatus(calendarStatus);
   } catch (error) {
     document.getElementById('serverStatus').textContent = '● Server unavailable';
     document.getElementById('serverStatus').style.color = '#ff9aa7';
@@ -172,9 +415,7 @@ async function startRecording() {
 }
 
 function stopRecording() {
-  if (state.recorder?.state === 'recording') {
-    state.recorder.stop();
-  }
+  if (state.recorder?.state === 'recording') state.recorder.stop();
   const button = document.getElementById('recordButton');
   button.classList.remove('recording');
   button.textContent = '🎙';
@@ -270,5 +511,12 @@ document.getElementById('demoListen').addEventListener('click', () => {
   box.hidden = false;
   box.innerHTML = '<strong>Flow:</strong> play audio → learner answers → reveal transcript → compare → create evidence event. Generated/cached audio comes in the speech phase.';
 });
+
+document.getElementById('uploadCalendarCredentials').addEventListener('click', uploadCalendarCredentials);
+document.getElementById('connectCalendar').addEventListener('click', connectCalendar);
+document.getElementById('disconnectCalendar').addEventListener('click', disconnectCalendar);
+document.getElementById('saveAvailabilityCalendars').addEventListener('click', saveAvailabilityCalendars);
+document.getElementById('findFreeSlots').addEventListener('click', findFreeSlots);
+document.getElementById('smartSchedule').addEventListener('click', smartSchedule);
 
 boot();
