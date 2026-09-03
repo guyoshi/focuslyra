@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .runtime import current_user_id, user_private_dir
+from .user_service import UserServiceError, profile_defaults
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROFILE_PATH = ROOT / "data" / "profile.json"
@@ -42,11 +43,25 @@ def _merge_defaults(defaults: dict[str, Any], stored: dict[str, Any]) -> dict[st
 
 
 def load_profile(user_id: str | None = None) -> dict[str, Any]:
+    uid = user_id or current_user_id()
     defaults = _read_profile(DEFAULT_PROFILE_PATH)
-    path = _profile_path(user_id)
+    try:
+        defaults = _merge_defaults(defaults, profile_defaults(uid))
+    except UserServiceError:
+        # Custom/server user ids can still inherit the generic profile schema.
+        pass
+
+    path = _profile_path(uid)
     stored = _read_profile(path) if path.exists() else {}
     result = _merge_defaults(defaults, stored)
-    result["user_id"] = user_id or current_user_id()
+
+    # One-time compatibility: the original personal profile was labelled "Gui".
+    # The local account is now explicitly named Guilherme, while all existing
+    # sessions/evidence remain under the same stable local-owner id.
+    if uid == "local-owner" and str(result.get("learner_name") or "").strip() == "Gui":
+        result["learner_name"] = "Guilherme"
+
+    result["user_id"] = uid
     return result
 
 
