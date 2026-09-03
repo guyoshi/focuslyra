@@ -88,8 +88,10 @@ def _mode_candidates(language: dict[str, Any], stats: LanguageStats) -> list[str
     code = str(language.get("code", ""))
     modes: list[str] = []
 
+    # Review is a learning intention, not a separate Study screen. Due review
+    # targets are retrieved through speaking first, then another suitable mode.
     if stats.review_targets:
-        modes.append("review")
+        modes.append("speak")
     if "pronunciation" in goals or "accent" in goals or "rp" in goals:
         modes.extend(["pronounce", "listen"])
     if "listening" in goals:
@@ -101,7 +103,6 @@ def _mode_candidates(language: dict[str, Any], stats: LanguageStats) -> list[str
     if "writing" in goals:
         modes.append("write")
 
-    # Speaking/listening-first global fallback.
     modes.extend(["speak", "listen", "write"])
     unique: list[str] = []
     for mode in modes:
@@ -136,9 +137,8 @@ def _session_minutes(profile: dict[str, Any], mode: str) -> int:
 def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[str, Any]:
     """Build a deterministic plan from learner priorities, recency and evidence.
 
-    The planner itself does not call an LLM. It decides *what needs practice*;
-    the activity generator decides *how to present it*. This separation keeps
-    scheduling reliable even when local AI is unavailable.
+    The planner decides what needs practice. The local activity generator decides
+    how to present each slot, keeping scheduling reliable even if an LLM is down.
     """
     uid = user_id or current_user_id()
     profile = load_profile(uid)
@@ -163,8 +163,6 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
         chosen = candidates[:2]
         activity_count = min(3, len(chosen) + 1)
     else:
-        # Prefer active languages, but allow one stale maintenance language to
-        # enter longer sessions when it has been neglected.
         active = [item for item in candidates if item[1].get("status") == "active"]
         maintenance = [item for item in candidates if item[1].get("status") == "maintenance"]
         chosen = active[:3]
@@ -173,7 +171,6 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
         chosen = chosen or candidates[:2]
         activity_count = min(6, max(3, round(total / 9)))
 
-    # Allocate activity slots round-robin across chosen languages, then divide minutes.
     slots: list[tuple[dict[str, Any], LanguageStats, str]] = []
     mode_indexes: dict[str, int] = {}
     for index in range(activity_count):
@@ -202,10 +199,7 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
                 "modality": modality,
                 "minutes": minutes,
                 "hidden_targets": targets,
-                "reason": (
-                    "review evidence is due" if modality == "review" and targets
-                    else "high priority + recent learning evidence"
-                ),
+                "reason": "retrieval evidence is due" if targets else "priority, recency and learner goals",
                 "stats": {
                     "days_since_last_session": round(_days_since(stats.last_session_at), 1),
                     "sessions_7d": stats.sessions_7d,
