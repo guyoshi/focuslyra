@@ -1,0 +1,11 @@
+{
+  "id": "46d14ad7ab4c6220c52138ac",
+  "text": "Me gustaría hablar contigo un poco más para practicar mi español.",
+  "language_code": "es-ES",
+  "voice": "em_alex",
+  "purpose": "default",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/es-ES/46d14ad7ab4c6220c52138ac.wav",
+  "cached": true
+}

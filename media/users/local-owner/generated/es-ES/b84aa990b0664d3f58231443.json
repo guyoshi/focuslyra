@@ -1,0 +1,11 @@
+{
+  "id": "b84aa990b0664d3f58231443",
+  "text": "Me gustaría hablar contigo un poco más para practicar mi español.",
+  "language_code": "es-ES",
+  "voice": "ef_dora",
+  "purpose": "default",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/es-ES/b84aa990b0664d3f58231443.wav",
+  "cached": true
+}
