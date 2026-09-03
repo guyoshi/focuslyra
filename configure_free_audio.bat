@@ -15,8 +15,12 @@ if not exist ".venv\Scripts\python.exe" (
   if errorlevel 1 goto :failed
 )
 
-echo [Focuslyra] Installing local speech transcription...
+echo [Focuslyra] Installing/updating local speech transcription...
 ".venv\Scripts\python.exe" -m pip install -r requirements-audio.txt
+if errorlevel 1 goto :failed
+
+echo [Focuslyra] Verifying local audio dependencies...
+".venv\Scripts\python.exe" -c "import requests; from faster_whisper import WhisperModel; print('[Focuslyra] faster-whisper dependency check OK')"
 if errorlevel 1 goto :failed
 
 if not exist ".env" copy ".env.example" ".env" >nul
@@ -27,6 +31,8 @@ echo [Focuslyra] Preloading Whisper 'small' locally.
 echo [Focuslyra] This first download can take a few minutes and uses no paid API.
 ".venv\Scripts\python.exe" -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8'); print('[Focuslyra] Whisper small is ready.')"
 if errorlevel 1 goto :failed
+
+powershell -NoProfile -Command "(Get-FileHash 'requirements-audio.txt' -Algorithm SHA256).Hash | Set-Content '.venv\.focuslyra_audio_requirements_hash' -Encoding ascii"
 
 echo.
 echo ==================================================
