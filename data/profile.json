@@ -1,0 +1,15 @@
+{
+  "learner_name": "Gui",
+  "native_language": "pt-BR",
+  "normal_session_minutes": 45,
+  "minimum_session_minutes": 12,
+  "learning_focus": ["speaking", "listening"],
+  "accent_importance": "high",
+  "attention_strategy": "change activity while preserving the learning target",
+  "allow_paid_ai": false,
+  "active_cycle": {
+    "primary": ["en-GB", "es-ES", "ja-JP"],
+    "maintenance": ["it-IT", "fr-FR"],
+    "parked": ["ar", "de-DE"]
+  }
+}
