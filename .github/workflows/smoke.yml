@@ -27,7 +27,9 @@ jobs:
         run: python -m compileall -q app
 
       - name: Validate frontend JavaScript
-        run: node --check static/app.js
+        run: |
+          node --check static/app.js
+          node --check static/learning.js
 
       - name: Validate JSON data
         run: |
