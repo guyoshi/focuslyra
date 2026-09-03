@@ -43,7 +43,34 @@ jobs:
               print('OK', path)
           PY
 
+      - name: Validate learner language merge and adaptive plan
+        env:
+          ALLOW_PAID_AI: "false"
+        run: |
+          python - <<'PY'
+          from app.db import initialise_database
+          from app.language_service import load_languages
+          from app.session_planner import build_daily_plan
+          from app.activity_engine import generate_activity
+
+          initialise_database()
+          languages = load_languages()
+          english = next(item for item in languages if item['code'] == 'en-GB')
+          assert english['priority'] == 1
+          assert english['status'] == 'active'
+          assert 'RP' in english['target_variety']
+
+          plan = build_daily_plan('minimum')
+          assert plan['activities']
+          assert all(item['modality'] in {'speak','listen','write','read','pronounce'} for item in plan['activities'])
+          activity = generate_activity(plan['activities'][0])
+          assert activity['language_code'] == plan['activities'][0]['language_code']
+          assert activity['modality'] == plan['activities'][0]['modality']
+          assert activity['title']
+          print('Adaptive plan OK:', plan['total_minutes'], activity['modality'])
+          PY
+
       - name: Import application
         env:
           ALLOW_PAID_AI: "false"
-        run: python -c "from app.main import app; assert app.title == 'Focuslyra'; print('Focuslyra import OK')"
+        run: python -c "from app.main import app; assert app.title == 'Focuslyra'; assert app.version == '0.6.0'; print('Focuslyra import OK')"
