@@ -39,6 +39,7 @@ from .tts_service import (
     synthesise,
     tts_status,
 )
+from .voice_router import router as voice_router
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
@@ -50,8 +51,9 @@ load_dotenv(ROOT / ".env")
 RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 initialise_database()
 
-app = FastAPI(title="Focuslyra", version="0.4.0")
+app = FastAPI(title="Focuslyra", version="0.5.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.include_router(voice_router)
 
 
 class SessionPayload(BaseModel):
