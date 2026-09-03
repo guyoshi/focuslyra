@@ -4,29 +4,43 @@ function learningScoreLabel(value) {
   return `${Math.max(0, Math.min(100, Math.round(number)))}%`;
 }
 
-function browserSpeakFallback(text, languageCode) {
+function voiceProfile(languageCode) {
+  return window.FocuslyraVoice?.getProfile?.(languageCode) || {};
+}
+
+function preferredVoice(languageCode, purpose = 'default') {
+  return window.FocuslyraVoice?.getVoice?.(languageCode, purpose) || null;
+}
+
+function browserSpeakFallback(text, languageCode, voiceName = null, speed = null) {
   if (!text || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = languageCode || 'en-GB';
-  utterance.rate = 0.92;
+  utterance.rate = Number(speed || voiceProfile(languageCode).speed || 0.92);
   const voices = window.speechSynthesis.getVoices();
+  const named = voiceName ? voices.find(voice => voice.name === voiceName) : null;
   const exact = voices.find(voice => voice.lang?.toLowerCase() === utterance.lang.toLowerCase());
   const base = (languageCode || '').split('-')[0].toLowerCase();
   const fallback = voices.find(voice => voice.lang?.toLowerCase().startsWith(`${base}-`));
-  if (exact || fallback) utterance.voice = exact || fallback;
+  if (named || exact || fallback) utterance.voice = named || exact || fallback;
   window.speechSynthesis.speak(utterance);
 }
 
-async function speakLocally(text, languageCode, voice = null) {
+async function speakLocally(text, languageCode, voice = null, purpose = 'default') {
   if (!text) return;
+  const profile = voiceProfile(languageCode);
+  const selectedVoice = voice || preferredVoice(languageCode, purpose);
+  const speed = Number(profile.speed || 1.0);
   try {
     const status = await api('/api/tts/status');
-    if (status.configured && languageCode === 'en-GB') {
+    const canUseKokoro = status.configured && (status.supported_languages || []).includes(languageCode);
+    const wantsBrowser = profile.engine === 'browser';
+    if (canUseKokoro && !wantsBrowser) {
       const result = await api('/api/tts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, language_code: languageCode, voice, speed: 1.0 }),
+        body: JSON.stringify({ text, language_code: languageCode, voice: selectedVoice, speed }),
       });
       const audio = new Audio(result.url);
       await audio.play();
@@ -35,7 +49,7 @@ async function speakLocally(text, languageCode, voice = null) {
   } catch (error) {
     console.warn('Local persistent TTS unavailable, using browser fallback:', error);
   }
-  browserSpeakFallback(text, languageCode);
+  browserSpeakFallback(text, languageCode, selectedVoice, speed);
 }
 
 function renderLearningFeedback(container, result, languageCode, transcriptText = '') {
@@ -89,7 +103,7 @@ function renderLearningFeedback(container, result, languageCode, transcriptText 
     </div>`;
 
   const audioButton = container.querySelector('.speak-generated-audio');
-  if (audioButton) audioButton.addEventListener('click', () => speakLocally(audioText, languageCode));
+  if (audioButton) audioButton.addEventListener('click', () => speakLocally(audioText, languageCode, null, 'conversation'));
 }
 
 async function attachAcousticButton(container, recordingId) {
@@ -232,7 +246,7 @@ async function injectVoiceCalibration() {
     const sample = calibration.prompts?.find(p => p.id === 'connected') || calibration.prompts?.[0];
     section.innerHTML = `
       <strong>🇬🇧 RP reference voice calibration</strong>
-      <p class="muted small">Audition the British candidates. We will not label one "RP reference" until it passes this calibration.</p>
+      <p class="muted small">Audition the British candidates. Choose your final reference voice later under Voices settings.</p>
       <p>${escapeHtml(sample?.text || '')}</p>
       <div class="target-list calibration-voices">${(calibration.voices || []).map(v => `<button type="button" class="ghost calibration-voice" data-voice="${escapeHtml(v)}">🔊 ${escapeHtml(v)}</button>`).join('')}</div>
       <p class="muted small">${escapeHtml(calibration.warning || '')}</p>`;
@@ -241,7 +255,7 @@ async function injectVoiceCalibration() {
         const old = button.textContent;
         button.textContent = 'Generating…';
         button.disabled = true;
-        await speakLocally(sample.text, 'en-GB', button.dataset.voice);
+        await speakLocally(sample.text, 'en-GB', button.dataset.voice, 'reference');
         button.textContent = old;
         button.disabled = false;
       });
@@ -286,3 +300,10 @@ if (focuslyraRecordingButton) focuslyraRecordingButton.addEventListener('click',
 
 injectLearningEngineStatus();
 injectVoiceCalibration();
+
+if (!document.querySelector('script[data-focuslyra-voice-settings]')) {
+  const voiceSettingsScript = document.createElement('script');
+  voiceSettingsScript.src = '/static/voice-settings.js';
+  voiceSettingsScript.dataset.focuslyraVoiceSettings = '1';
+  document.body.appendChild(voiceSettingsScript);
+}
