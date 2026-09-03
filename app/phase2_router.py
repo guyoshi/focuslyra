@@ -14,6 +14,7 @@ from .diagnostic_service import (
     save_part,
     start_english_diagnostic,
 )
+from .language_service import load_language_catalogue
 from .learning_engine import LearningEngineError, analyse_submission
 from .memory_index import index_source, index_status, retrieve
 from .plan_calendar_service import (
@@ -66,6 +67,12 @@ class CalendarPlanPayload(BaseModel):
     mode: str = 'normal'
     window_start: str | None = None
     window_end: str | None = None
+
+
+@router.get('/languages/catalogue')
+def language_catalogue():
+    """All supported languages, including those not selected by this learner."""
+    return load_language_catalogue()
 
 
 @router.get('/study/plan')
