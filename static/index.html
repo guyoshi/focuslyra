@@ -24,6 +24,7 @@
         <button class="nav-button" data-view="review">↻ Review</button>
         <button class="nav-button" data-view="memory">▣ Memory</button>
         <button class="nav-button" data-view="progress">◫ Progress</button>
+        <button class="nav-button" data-view="calendar">▦ Calendar</button>
         <button class="nav-button" data-view="providers">⚙ AI</button>
       </nav>
 
@@ -219,6 +220,65 @@
             <div><span>RP pronunciation / prosody</span><i style="--score:71%"></i><b>71</b></div>
           </div>
         </article>
+      </section>
+
+      <section id="calendar" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Google Calendar</h2>
+            <p>Read your availability, then write study sessions only to the calendar created by Focuslyra.</p>
+          </div>
+          <span id="calendarStateBadge" class="badge">NOT CONNECTED</span>
+        </div>
+
+        <div class="calendar-grid">
+          <article class="card">
+            <h3>1. Connect Google</h3>
+            <p id="calendarStatusText" class="muted">Checking local Google Calendar configuration…</p>
+            <div id="calendarCredentialSetup">
+              <label class="file-label" for="calendarCredentials">Google Desktop OAuth credentials.json</label>
+              <input id="calendarCredentials" type="file" accept="application/json,.json" />
+              <button id="uploadCalendarCredentials" class="ghost">Upload credentials locally</button>
+            </div>
+            <div class="calendar-actions">
+              <button id="connectCalendar" class="primary">Connect Google Calendar</button>
+              <button id="disconnectCalendar" class="ghost">Disconnect</button>
+            </div>
+            <div id="calendarConnectionResult" class="feedback" hidden></div>
+            <p class="muted small">Credentials and OAuth tokens stay under <code>private/</code> on this PC and are excluded from Git.</p>
+          </article>
+
+          <article class="card">
+            <h3>2. Availability calendars</h3>
+            <p class="muted">Focuslyra checks these calendars for busy periods. It does not edit them.</p>
+            <div id="calendarList" class="calendar-check-list"><span class="muted small">Connect Google first.</span></div>
+            <button id="saveAvailabilityCalendars" class="ghost" disabled>Save availability selection</button>
+          </article>
+        </div>
+
+        <div class="calendar-grid second-row">
+          <article class="card">
+            <h3>3. Smart scheduling</h3>
+            <div class="calendar-form-grid">
+              <label>Date<input id="scheduleDate" type="date" /></label>
+              <label>Duration<input id="scheduleDuration" type="number" min="5" max="240" value="45" /></label>
+              <label>From<input id="scheduleStart" type="time" value="08:00" /></label>
+              <label>Until<input id="scheduleEnd" type="time" value="19:00" /></label>
+            </div>
+            <div class="calendar-actions">
+              <button id="findFreeSlots" class="ghost">Find free slots</button>
+              <button id="smartSchedule" class="primary">Schedule earliest free slot</button>
+            </div>
+            <div id="freeSlotList" class="slot-list"></div>
+            <div id="calendarScheduleResult" class="feedback" hidden></div>
+          </article>
+
+          <article class="card">
+            <h3>Upcoming Focuslyra sessions</h3>
+            <div id="upcomingCalendarEvents" class="upcoming-events"><span class="muted small">No calendar data loaded yet.</span></div>
+            <p class="muted small">Study events use Google Calendar popup reminders 10 minutes before and at start time. Phone delivery still depends on Google Calendar notifications being enabled on the phone.</p>
+          </article>
+        </div>
       </section>
 
       <section id="providers" class="view">
