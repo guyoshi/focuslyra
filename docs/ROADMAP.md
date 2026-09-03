@@ -8,19 +8,23 @@
 - [x] AI/cost rules documented.
 - [x] Data model documented.
 - [x] Local-first architecture documented.
+- [x] Privacy and sync defaults documented.
 
 ## Phase 1 — Working local MVP
 
-- [ ] Local FastAPI server.
-- [ ] Dashboard.
-- [ ] Study modes: Speak, Listen, Write, Read, Pronounce.
-- [ ] Browser microphone recording and playback.
-- [ ] Local session save endpoint.
-- [ ] SQLite database bootstrap.
-- [ ] Concept library prototype.
-- [ ] Language profile data.
-- [ ] Memory-source configuration UI.
-- [ ] Provider status page.
+- [x] Local FastAPI server.
+- [x] Dashboard.
+- [x] Study modes: Speak, Listen, Write, Read, Pronounce.
+- [x] Browser microphone recording and playback.
+- [x] Local recording persistence.
+- [x] Local session save endpoint.
+- [x] SQLite database bootstrap.
+- [x] Concept library prototype.
+- [x] Language profile data.
+- [x] Memory-source configuration UI.
+- [x] Provider status page.
+- [x] Windows/Unix setup and launch scripts.
+- [x] GitHub smoke-test workflow.
 
 ## Phase 2 — Learning engine
 
@@ -28,13 +32,13 @@
 - [ ] Recognition vs production tracking.
 - [ ] Review scheduling.
 - [ ] Daily session planner.
-- [ ] Minimum-day mode.
+- [ ] Minimum-day planning logic.
 - [ ] Hidden retrieval targets.
 - [ ] Progress radar by skill.
 
 ## Phase 3 — Free/local AI
 
-- [ ] Provider interface.
+- [ ] Formal provider interface and orchestrator.
 - [ ] Ollama local text provider.
 - [ ] Free-tier text provider integration.
 - [ ] Structured writing feedback.
@@ -53,25 +57,26 @@
 
 ## Phase 5 — Interest memory
 
-- [ ] Read-only Git repository sources.
-- [ ] Path include/exclude rules.
+- [x] Read-only Git repository source sync foundation.
+- [x] Path include/exclude rules in source configuration.
 - [ ] Last indexed commit tracking.
 - [ ] Local semantic/search index.
-- [ ] Tinkos as first project source.
-- [ ] Dimensoes Infinitas/books as first literary source.
-- [ ] Canon protection: generated exercises never mutate source repositories.
+- [x] Tinkos configured as a project source.
+- [x] Dimensoes Infinitas/books configured as a literary source.
+- [x] Canon protection rule: generated exercises never mutate source repositories.
 
 ## Phase 6 — Multilingual concept library
 
-- [ ] Emoji-first concept visuals.
+- [x] Emoji-first visual policy and concept UI prototype.
+- [ ] Persistent dynamic concept database.
 - [ ] Shared generated images.
 - [ ] Multiple senses per concept.
-- [ ] Language-specific expressions.
+- [ ] Language-specific expressions in persistent storage.
 - [ ] Listening/reading/speaking/writing evidence per expression.
 
 ## Phase 7 — Productisation
 
-- [ ] One-click setup/update.
+- [ ] One-click setup/update beyond development scripts.
 - [ ] Optional encrypted/synchronised learner media.
 - [ ] Multi-user architecture investigation.
 - [ ] Branding/domain/trademark review.
