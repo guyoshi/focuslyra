@@ -37,16 +37,19 @@ def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
     """Return the global language catalogue merged with learner-owned settings.
 
     The catalogue describes languages supported by Focuslyra. Priority, status,
-    target variety, current state and goals belong to the learner. Legacy fields
-    remain accepted only as fallback so old local installs migrate cleanly.
+    target variety, current state and goals belong to the learner. A profile may
+    also define ``enabled_languages`` so different local learners see only the
+    languages they actually study.
     """
     profile = load_profile(user_id)
     settings = _settings_from_profile(profile)
+    enabled_raw = profile.get("enabled_languages")
+    enabled = {str(code) for code in enabled_raw} if isinstance(enabled_raw, list) and enabled_raw else None
     result: list[dict[str, Any]] = []
 
     for base in _catalogue():
         code = str(base.get("code") or "").strip()
-        if not code:
+        if not code or (enabled is not None and code not in enabled):
             continue
         merged = dict(base)
         learner = settings.get(code, {})
