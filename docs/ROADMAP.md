@@ -34,32 +34,39 @@
 
 ## Phase 2 — Learning engine
 
-- [ ] Evidence events.
-- [ ] Recognition vs production tracking.
+- [x] Evidence-event persistence foundation.
+- [x] AI feedback persistence.
+- [x] Recent evidence fed back into later local analyses.
+- [ ] Recognition vs production aggregation.
 - [ ] Review scheduling.
 - [ ] Daily session planner.
 - [ ] Minimum-day planning logic.
-- [ ] Hidden retrieval targets.
-- [ ] Progress radar by skill.
+- [x] AI-generated hidden retrieval target for the next activity.
+- [ ] Progress radar from real evidence by skill.
 - [ ] Let the learning engine request calendar duration based on the day's study plan.
 - [ ] Optional user-approved automatic rescheduling policy.
 
 ## Phase 3 — Free/local AI
 
-- [ ] Formal provider interface and orchestrator.
-- [ ] Ollama local text provider.
-- [ ] Free-tier text provider integration.
-- [ ] Structured writing feedback.
-- [ ] Exercise generation.
-- [ ] Conversation turn generation.
-- [ ] Retrieval from learner history.
+- [x] Ollama local text generation through localhost API.
+- [x] Qwen3 local structured analysis.
+- [x] Writing → local AI → feedback → evidence → next activity pipeline.
+- [x] Speech transcript → local AI → feedback → evidence → next activity pipeline.
+- [ ] General provider interface/orchestrator beyond the Ollama MVP.
+- [ ] Free-tier cloud text provider integration.
+- [x] Structured writing feedback.
+- [ ] Dynamic exercise generation for all study modes.
+- [ ] Multi-turn conversation engine.
+- [x] Retrieval from recent learner evidence.
 
 ## Phase 4 — Speech and pronunciation
 
-- [ ] Local/free speech transcription.
+- [x] Optional free local Whisper transcription setup.
+- [x] Saved recording → local transcript → Learning Engine pipeline.
+- [x] Free browser TTS for generated practice utterances.
 - [ ] OpenAI audio provider as optional premium provider.
-- [ ] Listening audio generation/cache.
-- [ ] Acoustic pronunciation analysis.
+- [ ] Persistent listening audio generation/cache beyond browser TTS.
+- [ ] Acoustic pronunciation analysis from original recordings.
 - [ ] Sound map per language/accent.
 - [ ] Longitudinal recording comparison.
 
@@ -88,5 +95,7 @@
 - [ ] Optional encrypted/synchronised learner media.
 - [ ] Multi-user architecture investigation.
 - [ ] Google OAuth production/verification path for public distribution.
+- [ ] Installable PWA/mobile client.
+- [ ] Secure PC-as-home-server access for phone use.
+- [ ] Fully independent mobile/cloud backend option investigation.
 - [ ] Branding/domain/trademark review.
-- [ ] Packaging as desktop/PWA.
