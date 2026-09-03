@@ -5,6 +5,7 @@ from typing import Any
 
 from .db import recent_learning_evidence
 from .language_service import load_languages
+from .memory_index import retrieve
 from .profile_service import load_profile
 from .providers import AIProviderError, ollama_json
 from .runtime import current_user_id
@@ -179,6 +180,23 @@ def generate_activity(slot: dict[str, Any], user_id: str | None = None) -> dict[
     profile = load_profile(uid)
     evidence = recent_learning_evidence(language_code, limit=20, user_id=uid)
     hidden_targets = [str(item) for item in (slot.get("hidden_targets") or [])[:4] if str(item).strip()]
+    memory_query = " ".join(
+        [language.get('name', ''), modality, *hidden_targets, *(language.get('goals') or [])]
+    )
+    try:
+        memory_context = retrieve(memory_query, limit=3, user_id=uid)
+    except Exception:
+        memory_context = []
+    memory_payload = [
+        {
+            'source_id': item.get('source_id'),
+            'repository': item.get('repository'),
+            'path': item.get('path'),
+            'commit': item.get('commit'),
+            'excerpt': str(item.get('content') or '')[:1400],
+        }
+        for item in memory_context
+    ]
 
     system_prompt = f"""
 You create ONE short adaptive activity inside Focuslyra.
@@ -200,6 +218,9 @@ Rules:
 - For SPEAK, prompt must require spontaneous speech and no reference answer.
 - For WRITE, prompt must require original production and placeholder should match the target language.
 - Keep the activity around {int(slot.get('minutes') or 5)} minutes.
+- When interest_memory is provided, you MAY use it to make the exercise personally interesting.
+- Treat retrieved source excerpts as canonical context only for the source project. Never write changes back or present invented teaching adaptations as canon.
+- Do not reveal private source metadata to the learner unless it is naturally relevant to the activity.
 
 Return ONLY JSON:
 {{
@@ -220,6 +241,7 @@ Use empty strings for fields the modality does not need.
         "recent_evidence": evidence,
         "attention_strategy": profile.get("attention_strategy"),
         "planner_reason": slot.get("reason"),
+        "interest_memory": memory_payload,
     }
 
     try:
