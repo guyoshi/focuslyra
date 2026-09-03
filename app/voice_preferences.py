@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
+from .runtime import current_user_id, user_private_dir
+
 ROOT = Path(__file__).resolve().parents[1]
 LANGUAGES_PATH = ROOT / "data" / "languages.json"
-PREFERENCES_DIR = ROOT / "private" / "preferences"
-VOICE_PREFERENCES_PATH = PREFERENCES_DIR / "voice_profiles.json"
+LEGACY_VOICE_PREFERENCES_PATH = ROOT / "private" / "preferences" / "voice_profiles.json"
 
 VALID_ENGINES = {"auto", "kokoro", "browser"}
 VALID_PURPOSES = {"default", "reference", "conversation", "listening"}
@@ -19,6 +21,23 @@ DEFAULT_VOICES = {
 
 class VoicePreferenceError(RuntimeError):
     pass
+
+
+def _preference_path(user_id: str | None = None) -> Path:
+    return user_private_dir(user_id) / "preferences" / "voice_profiles.json"
+
+
+def _migrate_legacy_preferences(target: Path) -> None:
+    if target.exists() or not LEGACY_VOICE_PREFERENCES_PATH.exists():
+        return
+    # The legacy single-user file belongs to the original local owner only.
+    if current_user_id() != "local-owner":
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copy2(LEGACY_VOICE_PREFERENCES_PATH, target)
+    except OSError:
+        pass
 
 
 def _languages() -> list[dict[str, Any]]:
@@ -45,6 +64,7 @@ def _default_profile(language_code: str) -> dict[str, Any]:
 def _defaults() -> dict[str, Any]:
     return {
         "version": 1,
+        "user_id": current_user_id(),
         "languages": {
             str(language.get("code")): _default_profile(str(language.get("code")))
             for language in _languages()
@@ -55,10 +75,12 @@ def _defaults() -> dict[str, Any]:
 
 def load_voice_preferences() -> dict[str, Any]:
     defaults = _defaults()
-    if not VOICE_PREFERENCES_PATH.exists():
+    path = _preference_path()
+    _migrate_legacy_preferences(path)
+    if not path.exists():
         return defaults
     try:
-        stored = json.loads(VOICE_PREFERENCES_PATH.read_text(encoding="utf-8"))
+        stored = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return defaults
 
@@ -109,8 +131,9 @@ def save_voice_preferences(payload: dict[str, Any]) -> dict[str, Any]:
             raise VoicePreferenceError("Voice speed must be a number.") from exc
         current["speed"] = round(max(0.65, min(1.35, speed)), 2)
 
-    PREFERENCES_DIR.mkdir(parents=True, exist_ok=True)
-    VOICE_PREFERENCES_PATH.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    path = _preference_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
 
 
