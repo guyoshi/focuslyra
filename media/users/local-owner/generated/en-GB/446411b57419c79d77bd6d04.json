@@ -1,0 +1,11 @@
+{
+  "id": "446411b57419c79d77bd6d04",
+  "text": "I thought the weather would be warmer by the time we arrived.",
+  "language_code": "en-GB",
+  "voice": "bm_george",
+  "purpose": "reference",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/en-GB/446411b57419c79d77bd6d04.wav",
+  "cached": true
+}
