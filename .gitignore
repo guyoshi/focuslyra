@@ -15,9 +15,12 @@ indexes/
 # External source repositories are local read-only clones
 sources/
 
-# Learner media is local by default; selected assets may later use Git LFS
+# Learner/generated media stays local by default
 media/recordings/
-media/generated/audio/
+media/generated/
+
+# Downloaded local AI/audio models are machine-local assets
+models/
 
 # IDE
 .vscode/
