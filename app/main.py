@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -29,8 +29,16 @@ from .calendar_service import (
 )
 from .db import initialise_database, save_session
 from .learning_engine import LearningEngineError, analyse_submission
+from .pronunciation_service import PronunciationServiceError, analyse_acoustics, pronunciation_status
 from .providers import get_provider_statuses, paid_ai_allowed
 from .source_manager import SourceSyncError, sync_git_source
+from .tts_service import (
+    TTSServiceError,
+    cached_audio_path,
+    calibration_prompts,
+    synthesise,
+    tts_status,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
@@ -42,7 +50,7 @@ load_dotenv(ROOT / ".env")
 RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 initialise_database()
 
-app = FastAPI(title="Focuslyra", version="0.3.0")
+app = FastAPI(title="Focuslyra", version="0.4.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -60,6 +68,13 @@ class LearningTextPayload(BaseModel):
     text: str
     exercise_prompt: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TTSPayload(BaseModel):
+    text: str
+    language_code: str = "en-GB"
+    voice: str | None = None
+    speed: float = 1.0
 
 
 class CalendarSelectionPayload(BaseModel):
@@ -178,6 +193,49 @@ def get_audio_status() -> dict[str, Any]:
     return audio_status()
 
 
+@app.get("/api/tts/status")
+def get_tts_status() -> dict[str, Any]:
+    return tts_status()
+
+
+@app.post("/api/tts/generate")
+def generate_tts(payload: TTSPayload) -> dict[str, Any]:
+    try:
+        result = synthesise(
+            payload.text,
+            language_code=payload.language_code,
+            voice=payload.voice,
+            speed=payload.speed,
+        )
+    except TTSServiceError as exc:
+        raise learning_error(exc) from exc
+    return {"ok": True, "audio": result, "url": f"/api/tts/audio/{result['id']}"}
+
+
+@app.get("/api/tts/audio/{audio_id}")
+def serve_generated_audio(audio_id: str) -> FileResponse:
+    try:
+        path = cached_audio_path(audio_id)
+    except TTSServiceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(path, media_type="audio/wav", filename=path.name)
+
+
+@app.get("/api/tts/calibration-prompts")
+def get_tts_calibration_prompts() -> dict[str, Any]:
+    status = tts_status()
+    return {
+        "voices": status.get("british_calibration_voices", []),
+        "prompts": calibration_prompts(),
+        "warning": "British voice does not automatically mean perfect contemporary RP. Audition before selecting the reference voice.",
+    }
+
+
+@app.get("/api/pronunciation/status")
+def get_pronunciation_status() -> dict[str, Any]:
+    return pronunciation_status()
+
+
 @app.post("/api/recordings")
 async def save_recording(
     file: UploadFile = File(...),
@@ -225,7 +283,10 @@ def learning_analyse_recording(recording_id: str) -> dict[str, Any]:
             learner_text=str(transcript.get("text") or ""),
             exercise_prompt=activity,
             transcript_source="local-whisper",
-            metadata={"recording_id": recording_id, "transcription": {"engine": transcript.get("engine"), "model": transcript.get("model")}},
+            metadata={
+                "recording_id": recording_id,
+                "transcription": {"engine": transcript.get("engine"), "model": transcript.get("model")},
+            },
         )
 
         relative = str(metadata.get("relative_audio_path") or "")
@@ -238,6 +299,14 @@ def learning_analyse_recording(recording_id: str) -> dict[str, Any]:
             )
         return {"ok": True, "transcript": transcript, **result}
     except (AudioServiceError, LearningEngineError) as exc:
+        raise learning_error(exc) from exc
+
+
+@app.post("/api/pronunciation/analyse-recording/{recording_id}")
+def pronunciation_analyse_recording(recording_id: str) -> dict[str, Any]:
+    try:
+        return {"ok": True, "acoustics": analyse_acoustics(recording_id)}
+    except PronunciationServiceError as exc:
         raise learning_error(exc) from exc
 
 
