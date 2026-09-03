@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -101,9 +101,13 @@ def learning_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=400, detail=str(exc))
 
 
-@app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+@app.get("/", response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    learning_script = '<script src="/static/learning.js" defer></script>'
+    if learning_script not in html:
+        html = html.replace("</body>", f"  {learning_script}\n</body>")
+    return HTMLResponse(html)
 
 
 @app.get("/api/health")
