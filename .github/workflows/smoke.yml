@@ -34,6 +34,7 @@ jobs:
           node --check static/phase2.js
           node --check static/dashboard-evidence.js
           node --check static/users.js
+          node --check static/language-settings.js
 
       - name: Validate JSON data
         run: |
@@ -46,12 +47,12 @@ jobs:
               print('OK', path)
           PY
 
-      - name: Validate learner profiles and placement scaffolding
+      - name: Validate learner profiles, catalogue and placement scaffolding
         env:
           ALLOW_PAID_AI: "false"
         run: |
           python - <<'PY'
-          from app.language_service import load_languages
+          from app.language_service import load_language_catalogue, load_languages
           from app.placement_service import placement_prompts
           from app.runtime import current_user_id
           from app.user_service import list_users, select_user
@@ -61,6 +62,9 @@ jobs:
 
           select_user('tainara')
           assert current_user_id() == 'tainara'
+          catalogue = load_language_catalogue()
+          assert len(catalogue) == 7
+          assert {item['code'] for item in catalogue if item['selected']} == {'en-GB', 'es-ES', 'it-IT', 'de-DE'}
           languages = load_languages()
           assert {item['code'] for item in languages} == {'en-GB', 'es-ES', 'it-IT', 'de-DE'}
           english = next(item for item in languages if item['code'] == 'en-GB')
@@ -69,7 +73,8 @@ jobs:
 
           select_user('local-owner')
           assert current_user_id() == 'local-owner'
-          print('Learner profiles + placement scaffolding OK')
+          assert len(load_language_catalogue()) == 7
+          print('Learner profiles + catalogue + placement scaffolding OK')
           PY
 
       - name: Validate adaptive study and learning v2 services
@@ -143,7 +148,7 @@ jobs:
           required = {
               '/api/study/plan', '/api/review/due', '/api/concepts', '/api/memory/search', '/api/progress',
               '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog',
-              '/api/users', '/api/users/select', '/api/placement/{language_code}',
+              '/api/users', '/api/users/select', '/api/languages/catalogue', '/api/placement/{language_code}',
               '/api/placement/{language_code}/text', '/api/placement/{language_code}/recording/{recording_id}'
           }
           missing = required - paths
