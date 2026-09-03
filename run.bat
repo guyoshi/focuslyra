@@ -23,6 +23,14 @@ if not exist ".venv\Scripts\python.exe" (
   goto :failed
 )
 
+rem New features may add Python packages after the first installation.
+".venv\Scripts\python.exe" -c "import fastapi, uvicorn, googleapiclient, google_auth_oauthlib" >nul 2>nul
+if errorlevel 1 (
+  echo [Focuslyra] New dependencies detected. Updating local environment...
+  call setup.bat
+  if errorlevel 1 goto :setup_failed
+)
+
 echo [Focuslyra] Starting local server...
 echo [Focuslyra] URL: http://127.0.0.1:8765
 echo [Focuslyra] Log: %LOG_FILE%
