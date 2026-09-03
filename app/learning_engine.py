@@ -1,33 +1,23 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from .db import recent_learning_evidence, save_learning_feedback, save_session
+from .language_service import load_languages
 from .profile_service import load_profile
 from .providers import AIProviderError, ollama_json
-
-ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "data"
 
 
 class LearningEngineError(RuntimeError):
     pass
 
 
-def _load_json(name: str) -> Any:
-    path = DATA_DIR / name
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
 def _language_profile(language_code: str) -> dict[str, Any]:
-    languages = _load_json("languages.json")
-    for language in languages:
+    for language in load_languages():
         if language.get("code") == language_code:
             return language
-    return {"code": language_code, "name": language_code, "target_variety": language_code}
+    return {"code": language_code, "name": language_code, "target_variety": language_code, "goals": []}
 
 
 def _learner_context(language_code: str) -> dict[str, Any]:
@@ -55,12 +45,7 @@ def _validate_analysis(value: dict[str, Any]) -> dict[str, Any]:
     value.setdefault("patterns_to_revisit", [])
     value.setdefault(
         "next_activity",
-        {
-            "type": "speak",
-            "prompt": "Use the corrected language in one new sentence.",
-            "target": "retrieval",
-            "audio_text": "",
-        },
+        {"type": "speak", "prompt": "Use the corrected language in one new sentence.", "target": "retrieval", "audio_text": ""},
     )
 
     scores = value.get("scores")
@@ -101,45 +86,42 @@ def analyse_submission(
     language = context["language"]
     target_name = language.get("name", language_code)
     target_variety = language.get("target_variety") or language_code
+    native_language = context["learner"].get("native_language") or "pt-BR"
 
     system_prompt = f"""
 You are the local assessment engine inside Focuslyra, a speaking/listening-first language-learning system.
 You are analysing {target_name} ({target_variety}) for one learner.
-The learner's native language is Brazilian Portuguese.
+The learner's native language is {native_language}.
+Current modality: {modality}.
 
 Principles:
 - Judge communication and automatic usable language, not school-test perfection.
-- Correct only mistakes that are useful enough to change future learning.
+- Correct only mistakes useful enough to change future learning.
 - Do not punish harmless stylistic variation.
-- Separate what the learner can understand from what they can actively produce when evidence allows it.
+- Separate comprehension from production when the modality provides that evidence.
+- For listening-response, prioritise whether the learner understood/responded to the source; do not treat every grammar issue as a listening failure.
+- For reading-response, prioritise comprehension of the supplied text while still noticing reusable production issues.
 - Prefer natural chunks/collocations and reusable sentence patterns over isolated grammar lectures.
 - If a regional variety is specified, prefer that variety.
-- Never invent pronunciation conclusions from text alone. If modality is speech-transcript, comment only on language evidenced by the transcript; acoustic pronunciation is analysed separately.
-- The next activity must test retrieval without simply giving the learner the answer first.
-- Keep feedback concise enough to be useful during a study session.
+- Never invent pronunciation conclusions from text or a transcript. Acoustic pronunciation is analysed separately.
+- The next activity suggestion should test retrieval without simply giving away the answer.
+- Keep feedback concise enough to use during a live study session.
 - Feedback/explanations may be in clear English, but any audio_text must be natural {target_name} in the requested regional variety.
 
-Return ONLY one JSON object with this exact high-level shape:
+Return ONLY one JSON object:
 {{
   "summary": "short learner-facing summary",
   "strengths": ["..."],
-  "corrections": [
-    {{"original": "...", "natural": "...", "reason": "...", "category": "grammar|vocabulary|naturalness|word_order|register"}}
-  ],
-  "scores": {{"communication": 0, "grammar_automaticity": 0, "active_vocabulary": 0, "naturalness": 0}},
-  "patterns_to_revisit": [{{"item": "short reusable target", "reason": "why it needs another encounter"}}],
-  "next_activity": {{
-    "type": "speak|write|listen|read|review",
-    "prompt": "one concrete next task",
-    "target": "hidden/retrieval target",
-    "audio_text": "a short natural target-language utterance useful for listening/repetition; empty string when audio would reveal the retrieval answer"
-  }}
+  "corrections": [{{"original":"...","natural":"...","reason":"...","category":"grammar|vocabulary|naturalness|word_order|register"}}],
+  "scores": {{"communication":0,"grammar_automaticity":0,"active_vocabulary":0,"naturalness":0}},
+  "patterns_to_revisit": [{{"item":"short reusable target","reason":"why it needs another encounter"}}],
+  "next_activity": {{"type":"speak|write|listen|read|review","prompt":"one concrete next task","target":"hidden/retrieval target","audio_text":""}}
 }}
-Scores are integers from 0 to 100 and are session evidence, not CEFR claims.
+Scores are integers 0-100 and are session evidence, not CEFR claims.
 """.strip()
 
     user_payload = {
-        "exercise_prompt": exercise_prompt,
+        "exercise_context": exercise_prompt,
         "modality": modality,
         "transcript_source": transcript_source,
         "learner_response": text,
@@ -154,7 +136,7 @@ Scores are integers from 0 to 100 and are session evidence, not CEFR claims.
     session_payload = {
         "language_code": language_code,
         "mode": modality,
-        "writing": text if modality == "writing" else None,
+        "writing": text if modality in {"writing", "listening-response", "reading-response"} else None,
         "metadata": {
             **(metadata or {}),
             "exercise_prompt": exercise_prompt,
@@ -166,9 +148,4 @@ Scores are integers from 0 to 100 and are session evidence, not CEFR claims.
     session_id = save_session(session_payload)
     save_learning_feedback(session_id, language_code, modality, analysis)
 
-    return {
-        "session_id": session_id,
-        "language_code": language_code,
-        "modality": modality,
-        "analysis": analysis,
-    }
+    return {"session_id": session_id, "language_code": language_code, "modality": modality, "analysis": analysis}
