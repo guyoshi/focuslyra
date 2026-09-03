@@ -1,0 +1,12 @@
+{
+  "id": "f4e6cdabe62a4a2884934bea22a0d05e",
+  "language_code": "en-GB",
+  "activity": "Pronunciation reference: Match intelligibility, timing and sentence melody rather than spelling every word slowly.",
+  "activity_id": "a1",
+  "reference_text": "I thought the weather would be warmer by the time we arrived.",
+  "target_feature": "timing and prosody",
+  "created_at": "2026-09-03T18:10:36.113333+00:00",
+  "mime_type": "audio/webm;codecs=opus",
+  "original_filename": "focuslyra-speaking.webm",
+  "relative_audio_path": "media/users/local-owner/recordings/2026-09-03/f4e6cdabe62a4a2884934bea22a0d05e.webm"
+}

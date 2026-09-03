@@ -1,0 +1,11 @@
+{
+  "id": "b8129abe1a8fb5a43f56cfd4",
+  "text": "I thought the weather would be better, but I could have stayed a little longer.",
+  "language_code": "en-GB",
+  "voice": "bf_lily",
+  "purpose": "default",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/en-GB/b8129abe1a8fb5a43f56cfd4.wav",
+  "cached": true
+}
