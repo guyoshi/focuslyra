@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .audio_service import AudioServiceError, audio_status, transcribe_recording
 from .calendar_service import (
     CalendarIntegrationError,
     connect_google_calendar,
@@ -27,6 +28,7 @@ from .calendar_service import (
     upcoming_focuslyra_events,
 )
 from .db import initialise_database, save_session
+from .learning_engine import LearningEngineError, analyse_submission
 from .providers import get_provider_statuses, paid_ai_allowed
 from .source_manager import SourceSyncError, sync_git_source
 
@@ -40,7 +42,7 @@ load_dotenv(ROOT / ".env")
 RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 initialise_database()
 
-app = FastAPI(title="Focuslyra", version="0.2.0")
+app = FastAPI(title="Focuslyra", version="0.3.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -49,6 +51,14 @@ class SessionPayload(BaseModel):
     mode: str = "study"
     started_at: str | None = None
     writing: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LearningTextPayload(BaseModel):
+    language_code: str
+    modality: str = "writing"
+    text: str
+    exercise_prompt: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -87,6 +97,10 @@ def calendar_error(exc: CalendarIntegrationError) -> HTTPException:
     return HTTPException(status_code=400, detail=str(exc))
 
 
+def learning_error(exc: Exception) -> HTTPException:
+    return HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -97,6 +111,7 @@ def health() -> dict[str, Any]:
     return {
         "ok": True,
         "name": "Focuslyra",
+        "version": app.version,
         "paid_ai_allowed": paid_ai_allowed(),
         "host": os.getenv("FOCUSLYRA_HOST", "127.0.0.1"),
     }
@@ -137,6 +152,28 @@ def create_session(payload: SessionPayload) -> dict[str, Any]:
     return {"ok": True, "session_id": session_id}
 
 
+@app.post("/api/learning/analyse-text")
+def learning_analyse_text(payload: LearningTextPayload) -> dict[str, Any]:
+    try:
+        return {
+            "ok": True,
+            **analyse_submission(
+                language_code=payload.language_code,
+                modality=payload.modality,
+                learner_text=payload.text,
+                exercise_prompt=payload.exercise_prompt,
+                metadata=payload.metadata,
+            ),
+        }
+    except LearningEngineError as exc:
+        raise learning_error(exc) from exc
+
+
+@app.get("/api/audio/status")
+def get_audio_status() -> dict[str, Any]:
+    return audio_status()
+
+
 @app.post("/api/recordings")
 async def save_recording(
     file: UploadFile = File(...),
@@ -169,6 +206,35 @@ async def save_recording(
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {"ok": True, "recording": metadata}
+
+
+@app.post("/api/learning/analyse-recording/{recording_id}")
+def learning_analyse_recording(recording_id: str) -> dict[str, Any]:
+    try:
+        transcript = transcribe_recording(recording_id)
+        metadata = transcript.get("original_metadata") or {}
+        language_code = str(metadata.get("language_code") or "unknown")
+        activity = str(metadata.get("activity") or "speaking")
+        result = analyse_submission(
+            language_code=language_code,
+            modality="speech-transcript",
+            learner_text=str(transcript.get("text") or ""),
+            exercise_prompt=activity,
+            transcript_source="local-whisper",
+            metadata={"recording_id": recording_id, "transcription": {"engine": transcript.get("engine"), "model": transcript.get("model")}},
+        )
+
+        relative = str(metadata.get("relative_audio_path") or "")
+        if relative:
+            audio_path = ROOT / relative
+            analysis_path = audio_path.with_suffix(".analysis.json")
+            analysis_path.write_text(
+                json.dumps({"transcript": transcript, "learning": result}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        return {"ok": True, "transcript": transcript, **result}
+    except (AudioServiceError, LearningEngineError) as exc:
+        raise learning_error(exc) from exc
 
 
 @app.get("/api/calendar/status")
