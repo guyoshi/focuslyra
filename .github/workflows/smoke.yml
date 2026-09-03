@@ -33,6 +33,7 @@ jobs:
           node --check static/voice-settings.js
           node --check static/phase2.js
           node --check static/dashboard-evidence.js
+          node --check static/users.js
 
       - name: Validate JSON data
         run: |
@@ -43,6 +44,32 @@ jobs:
               with path.open(encoding='utf-8') as f:
                   json.load(f)
               print('OK', path)
+          PY
+
+      - name: Validate learner profiles and placement scaffolding
+        env:
+          ALLOW_PAID_AI: "false"
+        run: |
+          python - <<'PY'
+          from app.language_service import load_languages
+          from app.placement_service import placement_prompts
+          from app.runtime import current_user_id
+          from app.user_service import list_users, select_user
+
+          users = list_users()
+          assert [user['display_name'] for user in users] == ['Guilherme', 'Tainara']
+
+          select_user('tainara')
+          assert current_user_id() == 'tainara'
+          languages = load_languages()
+          assert {item['code'] for item in languages} == {'en-GB', 'es-ES', 'it-IT', 'de-DE'}
+          english = next(item for item in languages if item['code'] == 'en-GB')
+          assert 'not starting from zero' in english['current_state']
+          assert placement_prompts('en-GB')['writing_prompt']
+
+          select_user('local-owner')
+          assert current_user_id() == 'local-owner'
+          print('Learner profiles + placement scaffolding OK')
           PY
 
       - name: Validate adaptive study and learning v2 services
@@ -60,7 +87,9 @@ jobs:
           from app.progress_service import learner_progress
           from app.diagnostic_service import start_english_diagnostic, get_attempt
           from app.plan_calendar_service import load_settings
+          from app.user_service import select_user
 
+          select_user('local-owner')
           initialise_database()
           languages = load_languages()
           english = next(item for item in languages if item['code'] == 'en-GB')
@@ -113,7 +142,9 @@ jobs:
           paths = {route.path for route in app.routes}
           required = {
               '/api/study/plan', '/api/review/due', '/api/concepts', '/api/memory/search', '/api/progress',
-              '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog'
+              '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog',
+              '/api/users', '/api/users/select', '/api/placement/{language_code}',
+              '/api/placement/{language_code}/text', '/api/placement/{language_code}/recording/{recording_id}'
           }
           missing = required - paths
           assert not missing, missing
