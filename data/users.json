@@ -1,0 +1,60 @@
+[
+  {
+    "id": "local-owner",
+    "display_name": "Guilherme",
+    "default": true,
+    "profile": {
+      "learner_name": "Guilherme"
+    }
+  },
+  {
+    "id": "tainara",
+    "display_name": "Tainara",
+    "default": false,
+    "profile": {
+      "learner_name": "Tainara",
+      "native_language": "pt-BR",
+      "normal_session_minutes": 40,
+      "minimum_session_minutes": 10,
+      "learning_focus": ["speaking", "listening"],
+      "accent_importance": "medium",
+      "attention_strategy": "change activity while preserving the learning target",
+      "enabled_languages": ["en-GB", "es-ES", "it-IT", "de-DE"],
+      "active_cycle": {
+        "primary": ["en-GB", "es-ES", "it-IT", "de-DE"],
+        "maintenance": [],
+        "parked": []
+      },
+      "language_settings": {
+        "en-GB": {
+          "priority": 1,
+          "status": "active",
+          "target_variety": "General British English",
+          "current_state": "Basic communication; can already understand and produce some simple English and is not starting from zero. Placement recommended.",
+          "goals": ["everyday conversation", "listening", "speaking confidence", "practical vocabulary"]
+        },
+        "es-ES": {
+          "priority": 1,
+          "status": "active",
+          "target_variety": "Peninsular Spanish",
+          "current_state": "Beginner/basic level with some simple words or phrases. Placement recommended.",
+          "goals": ["basic conversation", "listening", "travel and everyday vocabulary"]
+        },
+        "it-IT": {
+          "priority": 1,
+          "status": "active",
+          "target_variety": "Standard Italian",
+          "current_state": "Beginner/basic level with some simple words or phrases. Placement recommended.",
+          "goals": ["basic conversation", "listening", "travel and everyday vocabulary"]
+        },
+        "de-DE": {
+          "priority": 1,
+          "status": "active",
+          "target_variety": "Standard German",
+          "current_state": "Beginner/basic level with some simple words or phrases. Placement recommended.",
+          "goals": ["basic conversation", "listening", "practical everyday vocabulary"]
+        }
+      }
+    }
+  }
+]
