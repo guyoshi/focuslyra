@@ -267,12 +267,17 @@
   }
 })();
 
-// Load the second learning layer only after app.js, learning.js and voice
-// preferences are available. This keeps the HTML/sidebar clean while the same
-// API/UI layer is reusable later by the PWA/mobile client.
-if (!document.querySelector('script[data-focuslyra-phase2]')) {
-  const phase2Script = document.createElement('script');
-  phase2Script.src = '/static/phase2.js';
-  phase2Script.dataset.focuslyraPhase2 = '1';
-  document.body.appendChild(phase2Script);
+function loadFocuslyraLayer(src, dataName) {
+  const attribute = `data-${dataName}`;
+  if (document.querySelector(`script[${attribute}]`)) return;
+  const script = document.createElement('script');
+  script.src = src;
+  script.setAttribute(attribute, '1');
+  document.body.appendChild(script);
 }
+
+// Core app → learning.js → voice settings → v2 UI/dashboard. Keeping these as
+// separate layers lets the future PWA reuse the same APIs without cloning the
+// desktop learning domain.
+loadFocuslyraLayer('/static/phase2.js', 'focuslyra-phase2');
+loadFocuslyraLayer('/static/dashboard-evidence.js', 'focuslyra-dashboard-evidence');
