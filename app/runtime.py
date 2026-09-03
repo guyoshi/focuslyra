@@ -20,8 +20,8 @@ def _safe_id(value: str) -> str:
 class RuntimeConfig:
     """Small deployment seam kept stable as Focuslyra grows.
 
-    Today the app is single-user/local. A future authenticated server can set
-    the request user context without rewriting learning/storage services.
+    Today the app is local-first. A future authenticated server can set the
+    request user context without rewriting learning/storage services.
     """
 
     mode: str
@@ -45,13 +45,35 @@ def runtime_config() -> RuntimeConfig:
 _USER_CONTEXT: ContextVar[str | None] = ContextVar("focuslyra_user_id", default=None)
 
 
+def _active_user_path() -> Path:
+    return runtime_config().private_root / "active_user.txt"
+
+
 def current_user_id() -> str:
     value = _USER_CONTEXT.get()
-    return _safe_id(value) if value else runtime_config().default_user_id
+    if value:
+        return _safe_id(value)
+
+    # Personal/local installations can switch learners without authentication.
+    # The selected learner is machine-local and excluded from Git. A future
+    # server deployment can override this through request context instead.
+    try:
+        stored = _active_user_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        stored = ""
+    return _safe_id(stored or runtime_config().default_user_id)
+
+
+def set_active_user_id(user_id: str) -> str:
+    uid = _safe_id(user_id)
+    path = _active_user_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(uid, encoding="utf-8")
+    return uid
 
 
 def set_current_user_id(user_id: str):
-    """Reserved for future authentication middleware/request context."""
+    """Request-scoped user override reserved for future authentication middleware."""
     return _USER_CONTEXT.set(_safe_id(user_id))
 
 
