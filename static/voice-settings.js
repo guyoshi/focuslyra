@@ -42,10 +42,6 @@
   };
 
   function injectShell() {
-    // Voices now lives inside Settings → Voices as a sub-panel (see
-    // index.html #settings-voices), instead of owning its own top-level
-    // sidebar item and view section. This keeps the sidebar to daily-use
-    // screens and groups every "set once" screen under Settings.
     const host = document.getElementById('voiceSettingsHost');
     if (!host || host.dataset.wired) return;
     host.dataset.wired = '1';
@@ -170,7 +166,6 @@
       const voice = select?.value || defaultSelect?.value || null;
       const engine = engineSelect.value;
       const speed = Number(range.value || 1);
-      const language = voiceState.languages.find(item => item.code === languageCode);
       const sample = previewText(languageCode);
       const old = button.textContent;
       button.disabled = true;
@@ -263,11 +258,6 @@
     }
   };
 
-  // Voice loading/rendering happens on demand when Settings → Voices is
-  // opened (app.js calls FocuslyraVoice.reload()), not eagerly on every
-  // page load — but getVoice()/getProfile() must work for study playback
-  // even before that tab is ever opened, so preferences are fetched once
-  // up front regardless.
   api('/api/voice/preferences').then(preferences => { voiceState.preferences = preferences; }).catch(() => {});
 
   if ('speechSynthesis' in window) {
@@ -276,3 +266,13 @@
     });
   }
 })();
+
+// Load the second learning layer only after app.js, learning.js and voice
+// preferences are available. This keeps the HTML/sidebar clean while the same
+// API/UI layer is reusable later by the PWA/mobile client.
+if (!document.querySelector('script[data-focuslyra-phase2]')) {
+  const phase2Script = document.createElement('script');
+  phase2Script.src = '/static/phase2.js';
+  phase2Script.dataset.focuslyraPhase2 = '1';
+  document.body.appendChild(phase2Script);
+}
