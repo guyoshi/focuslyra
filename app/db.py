@@ -7,13 +7,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "data"
+from .runtime import current_user_id, runtime_config
+
+DATA_DIR = runtime_config().data_root
 DB_PATH = DATA_DIR / "focuslyra.db"
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(str(row[1]) == column for row in rows)
+
+
+def _ensure_user_column(conn: sqlite3.Connection, table: str) -> None:
+    # Existing personal MVP databases are migrated in place. Old records belong
+    # to the original local owner; future auth middleware can provide user ids.
+    if not _has_column(conn, table, "user_id"):
+        conn.execute(
+            f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-owner'"
+        )
 
 
 def initialise_database() -> None:
@@ -24,6 +39,7 @@ def initialise_database() -> None:
             """
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local-owner',
                 language_code TEXT,
                 mode TEXT NOT NULL,
                 started_at TEXT,
@@ -33,6 +49,7 @@ def initialise_database() -> None:
 
             CREATE TABLE IF NOT EXISTS writings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local-owner',
                 session_id INTEGER,
                 language_code TEXT,
                 original_text TEXT NOT NULL,
@@ -42,6 +59,7 @@ def initialise_database() -> None:
 
             CREATE TABLE IF NOT EXISTS evidence_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local-owner',
                 session_id INTEGER,
                 language_code TEXT NOT NULL,
                 item_id TEXT,
@@ -55,6 +73,7 @@ def initialise_database() -> None:
 
             CREATE TABLE IF NOT EXISTS ai_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'local-owner',
                 session_id INTEGER,
                 language_code TEXT NOT NULL,
                 modality TEXT NOT NULL,
@@ -64,6 +83,21 @@ def initialise_database() -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(session_id) REFERENCES sessions(id)
             );
+            """
+        )
+
+        # Safe in-place migration for databases created before user scoping.
+        for table in ("sessions", "writings", "evidence_events", "ai_feedback"):
+            _ensure_user_column(conn, table)
+
+        conn.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_sessions_user_language
+                ON sessions(user_id, language_code, id);
+            CREATE INDEX IF NOT EXISTS idx_evidence_user_language
+                ON evidence_events(user_id, language_code, id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_user_language
+                ON ai_feedback(user_id, language_code, id);
             """
         )
         conn.commit()
@@ -79,15 +113,17 @@ def connection() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def save_session(payload: dict[str, Any]) -> int:
+def save_session(payload: dict[str, Any], user_id: str | None = None) -> int:
+    uid = user_id or current_user_id()
     completed_at = utc_now()
     with connection() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO sessions(language_code, mode, started_at, completed_at, payload_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO sessions(user_id, language_code, mode, started_at, completed_at, payload_json)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
+                uid,
                 payload.get("language_code"),
                 payload.get("mode", "unknown"),
                 payload.get("started_at"),
@@ -99,10 +135,10 @@ def save_session(payload: dict[str, Any]) -> int:
         if payload.get("writing"):
             conn.execute(
                 """
-                INSERT INTO writings(session_id, language_code, original_text, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO writings(user_id, session_id, language_code, original_text, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (session_id, payload.get("language_code"), payload["writing"], completed_at),
+                (uid, session_id, payload.get("language_code"), payload["writing"], completed_at),
             )
         conn.commit()
     return session_id
@@ -113,18 +149,21 @@ def save_learning_feedback(
     language_code: str,
     modality: str,
     analysis: dict[str, Any],
+    user_id: str | None = None,
 ) -> None:
     """Persist AI feedback plus compact evidence events used by later sessions."""
+    uid = user_id or current_user_id()
     created_at = utc_now()
     provider = str(analysis.get("provider") or "")
     model = str(analysis.get("model") or "")
     with connection() as conn:
         conn.execute(
             """
-            INSERT INTO ai_feedback(session_id, language_code, modality, provider, model, feedback_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ai_feedback(user_id, session_id, language_code, modality, provider, model, feedback_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                uid,
                 session_id,
                 language_code,
                 modality,
@@ -144,10 +183,11 @@ def save_learning_feedback(
                     continue
                 conn.execute(
                     """
-                    INSERT INTO evidence_events(session_id, language_code, item_id, modality, event_type, score, payload_json, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO evidence_events(user_id, session_id, language_code, item_id, modality, event_type, score, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
+                        uid,
                         session_id,
                         language_code,
                         str(skill),
@@ -170,10 +210,11 @@ def save_learning_feedback(
                 continue
             conn.execute(
                 """
-                INSERT INTO evidence_events(session_id, language_code, item_id, modality, event_type, score, payload_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO evidence_events(user_id, session_id, language_code, item_id, modality, event_type, score, payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
+                    uid,
                     session_id,
                     language_code,
                     item,
@@ -187,17 +228,22 @@ def save_learning_feedback(
         conn.commit()
 
 
-def recent_learning_evidence(language_code: str, limit: int = 20) -> list[dict[str, Any]]:
+def recent_learning_evidence(
+    language_code: str,
+    limit: int = 20,
+    user_id: str | None = None,
+) -> list[dict[str, Any]]:
+    uid = user_id or current_user_id()
     with connection() as conn:
         rows = conn.execute(
             """
             SELECT item_id, modality, event_type, score, payload_json, created_at
             FROM evidence_events
-            WHERE language_code = ?
+            WHERE user_id = ? AND language_code = ?
             ORDER BY id DESC
             LIMIT ?
             """,
-            (language_code, max(1, min(limit, 100))),
+            (uid, language_code, max(1, min(limit, 100))),
         ).fetchall()
     result: list[dict[str, Any]] = []
     for row in rows:
