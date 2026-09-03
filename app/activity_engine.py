@@ -62,6 +62,72 @@ FALLBACK_CONTENT = {
     },
 }
 
+ABSOLUTE_BEGINNER_CONTENT = {
+    "en-GB": {
+        "hello": "Hello.",
+        "name": "My name is Gui.",
+        "repeat": "Could you repeat that?",
+        "listen": "Hello. My name is Alex.",
+        "read": "Hello. My name is Alex.",
+        "pronounce": "Hello. My name is Gui.",
+        "placeholder": "My name is …",
+    },
+    "es-ES": {
+        "hello": "Hola.",
+        "name": "Me llamo Gui.",
+        "repeat": "¿Puedes repetir?",
+        "listen": "Hola. Me llamo Ana.",
+        "read": "Hola. Me llamo Ana.",
+        "pronounce": "Hola, me llamo Gui.",
+        "placeholder": "Me llamo …",
+    },
+    "ja-JP": {
+        "hello": "こんにちは。",
+        "name": "ギーです。",
+        "repeat": "もういちど おねがいします。",
+        "listen": "こんにちは。アンナです。",
+        "read": "こんにちは。アンナです。",
+        "pronounce": "こんにちは。",
+        "placeholder": "___ です。",
+    },
+    "it-IT": {
+        "hello": "Ciao.",
+        "name": "Mi chiamo Gui.",
+        "repeat": "Puoi ripetere?",
+        "listen": "Ciao. Mi chiamo Anna.",
+        "read": "Ciao. Mi chiamo Anna.",
+        "pronounce": "Ciao, mi chiamo Gui.",
+        "placeholder": "Mi chiamo …",
+    },
+    "fr-FR": {
+        "hello": "Bonjour.",
+        "name": "Je m'appelle Gui.",
+        "repeat": "Vous pouvez répéter ?",
+        "listen": "Bonjour. Je m'appelle Anna.",
+        "read": "Bonjour. Je m'appelle Anna.",
+        "pronounce": "Bonjour, je m'appelle Gui.",
+        "placeholder": "Je m'appelle …",
+    },
+    "de-DE": {
+        "hello": "Hallo.",
+        "name": "Ich heiße Gui.",
+        "repeat": "Kannst du das wiederholen?",
+        "listen": "Hallo. Ich heiße Anna.",
+        "read": "Hallo. Ich heiße Anna.",
+        "pronounce": "Hallo, ich heiße Gui.",
+        "placeholder": "Ich heiße …",
+    },
+    "ar": {
+        "hello": "مرحباً.",
+        "name": "اسمي غي.",
+        "repeat": "هل يمكنك أن تكرر؟",
+        "listen": "مرحباً. اسمي آنا.",
+        "read": "مرحباً. اسمي آنا.",
+        "pronounce": "مرحباً.",
+        "placeholder": "اسمي …",
+    },
+}
+
 
 def _language(language_code: str, user_id: str | None = None) -> dict[str, Any]:
     for language in load_languages(user_id):
@@ -70,7 +136,101 @@ def _language(language_code: str, user_id: str | None = None) -> dict[str, Any]:
     raise ActivityEngineError(f"Unknown language: {language_code}")
 
 
+def _learner_stage(language: dict[str, Any]) -> str:
+    state = str(language.get("current_state") or "").strip().lower()
+    absolute_markers = (
+        "not yet started",
+        "not started",
+        "absolute beginner",
+        "zero knowledge",
+        "no knowledge",
+        "never studied",
+    )
+    if any(marker in state for marker in absolute_markers):
+        return "absolute_beginner"
+    beginner_markers = (
+        "beginner",
+        "basic communication",
+        "little conversation",
+        "basic speaking",
+        "basic sentence",
+        "most hiragana",
+    )
+    if any(marker in state for marker in beginner_markers):
+        return "beginner"
+    return "established"
+
+
+def _absolute_beginner_activity(slot: dict[str, Any], language: dict[str, Any]) -> dict[str, Any]:
+    modality = str(slot.get("modality") or "speak")
+    code = str(language.get("code") or slot.get("language_code") or "")
+    name = str(language.get("name") or code or "language")
+    samples = ABSOLUTE_BEGINNER_CONTENT.get(code, ABSOLUTE_BEGINNER_CONTENT["en-GB"])
+
+    if modality == "listen":
+        return {
+            "title": "First listening: recognise a tiny exchange",
+            "instructions": "Listen to one very short line. You are not expected to understand every sound yet.",
+            "prompt": "What happened? You can answer in your strongest language: the speaker said hello, gave a name, or asked a question?",
+            "audio_text": samples["listen"],
+            "input_text": "",
+            "reference_text": "",
+            "target_feature": "recognise greeting + name",
+            "placeholder": "Write the meaning you caught…",
+        }
+    if modality == "write":
+        return {
+            "title": "Build your first personal sentence",
+            "instructions": f"Use one visible pattern in {name}. Copying and changing one element is correct at this stage.",
+            "prompt": f"Write this with your own name: {samples['name']}",
+            "audio_text": "",
+            "input_text": "",
+            "reference_text": "",
+            "target_feature": "introducing yourself",
+            "placeholder": samples["placeholder"],
+        }
+    if modality == "read":
+        return {
+            "title": "Read one useful pattern",
+            "instructions": "Read for meaning first. There are only two tiny chunks.",
+            "prompt": "What does it mean? Then replace the name with your own.",
+            "audio_text": "",
+            "input_text": samples["read"],
+            "reference_text": "",
+            "target_feature": "greeting + self-introduction",
+            "placeholder": samples["placeholder"],
+        }
+    if modality == "pronounce":
+        return {
+            "title": "Say one useful phrase clearly",
+            "instructions": "Listen once, then repeat the short phrase. Do not worry about speed yet.",
+            "prompt": "Aim for clear rhythm and comfortable articulation.",
+            "audio_text": "",
+            "input_text": "",
+            "reference_text": samples["pronounce"],
+            "target_feature": "first-phrase rhythm and intelligibility",
+            "placeholder": "",
+        }
+    return {
+        "title": "Your first useful exchange",
+        "instructions": f"You are starting {name} from zero. Use the visible building blocks; improvisation is not expected yet.",
+        "prompt": (
+            f"Say these aloud, slowly if needed: {samples['hello']}  "
+            f"{samples['name']}  {samples['repeat']}  "
+            "Then repeat the self-introduction once with your own rhythm."
+        ),
+        "audio_text": "",
+        "input_text": "",
+        "reference_text": "",
+        "target_feature": "greeting + self-introduction + repair phrase",
+        "placeholder": "",
+    }
+
+
 def _fallback_activity(slot: dict[str, Any], language: dict[str, Any]) -> dict[str, Any]:
+    if _learner_stage(language) == "absolute_beginner":
+        return _absolute_beginner_activity(slot, language)
+
     modality = str(slot.get("modality") or "speak")
     code = str(language.get("code") or slot.get("language_code") or "")
     name = str(language.get("name") or code or "language")
@@ -178,10 +338,11 @@ def generate_activity(slot: dict[str, Any], user_id: str | None = None) -> dict[
 
     language = _language(language_code, uid)
     profile = load_profile(uid)
+    stage = _learner_stage(language)
     evidence = recent_learning_evidence(language_code, limit=20, user_id=uid)
     hidden_targets = [str(item) for item in (slot.get("hidden_targets") or [])[:4] if str(item).strip()]
     memory_query = " ".join(
-        [language.get('name', ''), modality, *hidden_targets, *(language.get('goals') or [])]
+        [language.get("name", ""), modality, *hidden_targets, *(language.get("goals") or [])]
     )
     try:
         memory_context = retrieve(memory_query, limit=3, user_id=uid)
@@ -189,11 +350,11 @@ def generate_activity(slot: dict[str, Any], user_id: str | None = None) -> dict[
         memory_context = []
     memory_payload = [
         {
-            'source_id': item.get('source_id'),
-            'repository': item.get('repository'),
-            'path': item.get('path'),
-            'commit': item.get('commit'),
-            'excerpt': str(item.get('content') or '')[:1400],
+            "source_id": item.get("source_id"),
+            "repository": item.get("repository"),
+            "path": item.get("path"),
+            "commit": item.get("commit"),
+            "excerpt": str(item.get("content") or "")[:1400],
         }
         for item in memory_context
     ]
@@ -205,20 +366,23 @@ Modality: {modality}.
 The learner's native language is {profile.get('native_language', 'pt-BR')}.
 Primary learning focus: {', '.join(profile.get('learning_focus') or ['speaking', 'listening'])}.
 Current learner state: {language.get('current_state', 'not assessed')}.
+Learner stage: {stage}.
 Goals: {', '.join(language.get('goals') or [])}.
 
 Rules:
 - Produce a useful real-world activity, not a school worksheet.
 - Keep it suitable for the learner state above. Do not suddenly use advanced target-language instructions for a beginner.
-- Learner-facing explanations/instructions may be in clear English when needed; the language being practised must be the target language.
+- If learner stage is absolute_beginner, assume the learner has essentially zero productive vocabulary. Introduce at most 1-3 high-frequency useful chunks, make the target-language material extremely short, visibly scaffold production, and do NOT require unassisted roleplay, multi-sentence improvisation or reacting naturally to a complex scenario.
+- For an absolute beginner, visible model phrases are allowed and desirable unless they are hidden retrieval targets. Prefer greeting, self-introduction, basic needs and repair phrases before open-ended conversation.
+- Learner-facing explanations/instructions may be in the learner's native language or clear English when needed; the language being practised must be the target language.
 - If hidden retrieval targets are supplied, create a situation where the learner is likely to need them. For SPEAK/WRITE, NEVER reveal those exact target expressions in the learner-visible prompt.
 - For LISTEN, put the spoken target-language passage ONLY in audio_text. Do not repeat it in prompt or input_text.
 - For READ, put the target-language passage in input_text and ask a meaning/comprehension question.
 - For PRONOUNCE, reference_text must be a short natural sentence in the target language and target_feature must name a useful sound/rhythm feature. Do not claim that a dialect voice is perfect.
-- For SPEAK, prompt must require spontaneous speech and no reference answer.
-- For WRITE, prompt must require original production and placeholder should match the target language.
+- For SPEAK, established learners should speak spontaneously. Absolute beginners may use visible scaffolds and imitation before spontaneous variation.
+- For WRITE, established learners should produce original language. Absolute beginners may copy-and-transform one useful pattern.
 - Keep the activity around {int(slot.get('minutes') or 5)} minutes.
-- When interest_memory is provided, you MAY use it to make the exercise personally interesting.
+- When interest_memory is provided, you MAY use it to make the exercise personally interesting, but never let interest context raise the linguistic difficulty above the learner stage.
 - Treat retrieved source excerpts as canonical context only for the source project. Never write changes back or present invented teaching adaptations as canon.
 - Do not reveal private source metadata to the learner unless it is naturally relevant to the activity.
 
@@ -237,6 +401,7 @@ Use empty strings for fields the modality does not need.
 """.strip()
 
     user_payload = {
+        "learner_stage": stage,
         "hidden_retrieval_targets": hidden_targets,
         "recent_evidence": evidence,
         "attention_strategy": profile.get("attention_strategy"),
@@ -249,5 +414,5 @@ Use empty strings for fields the modality does not need.
     except AIProviderError:
         generated = _fallback_activity(slot, language)
         generated["provider"] = "focuslyra-rules"
-        generated["model"] = "fallback-v1"
+        generated["model"] = "fallback-v2"
     return _clean(generated, slot, language)
