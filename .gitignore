@@ -1,0 +1,21 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Local database/cache
+data/focuslyra.db
+indexes/
+
+# External source repositories are local read-only clones
+sources/
+
+# Learner media is local by default; selected assets may later use Git LFS
+media/recordings/
+media/generated/audio/
+
+# IDE
+.vscode/
+.idea/
