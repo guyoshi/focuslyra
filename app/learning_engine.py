@@ -58,6 +58,7 @@ def _validate_analysis(value: dict[str, Any]) -> dict[str, Any]:
             "type": "speak",
             "prompt": "Use the corrected language in one new sentence.",
             "target": "retrieval",
+            "audio_text": "",
         },
     )
 
@@ -77,7 +78,8 @@ def _validate_analysis(value: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(value.get(list_key), list):
             value[list_key] = []
     if not isinstance(value.get("next_activity"), dict):
-        value["next_activity"] = {"type": "speak", "prompt": "Try again naturally.", "target": "retrieval"}
+        value["next_activity"] = {"type": "speak", "prompt": "Try again naturally.", "target": "retrieval", "audio_text": ""}
+    value["next_activity"].setdefault("audio_text", "")
     return value
 
 
@@ -114,6 +116,7 @@ Principles:
 - Never invent pronunciation conclusions from text alone. If modality is speech-transcript, comment only on language evidenced by the transcript; acoustic pronunciation is analysed separately.
 - The next activity must test retrieval without simply giving the learner the answer first.
 - Keep feedback concise enough to be useful during a study session.
+- Feedback/explanations may be in clear English, but any audio_text must be natural {target_name} in the requested regional variety.
 
 Return ONLY one JSON object with this exact high-level shape:
 {{
@@ -124,7 +127,12 @@ Return ONLY one JSON object with this exact high-level shape:
   ],
   "scores": {{"communication": 0, "grammar_automaticity": 0, "active_vocabulary": 0, "naturalness": 0}},
   "patterns_to_revisit": [{{"item": "short reusable target", "reason": "why it needs another encounter"}}],
-  "next_activity": {{"type": "speak|write|listen|read|review", "prompt": "one concrete next task", "target": "hidden/retrieval target"}}
+  "next_activity": {{
+    "type": "speak|write|listen|read|review",
+    "prompt": "one concrete next task",
+    "target": "hidden/retrieval target",
+    "audio_text": "a short natural target-language utterance useful for listening/repetition; empty string when audio would reveal the retrieval answer"
+  }}
 }}
 Scores are integers from 0 to 100 and are session evidence, not CEFR claims.
 """.strip()
