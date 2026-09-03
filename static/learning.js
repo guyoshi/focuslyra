@@ -4,7 +4,7 @@ function learningScoreLabel(value) {
   return `${Math.max(0, Math.min(100, Math.round(number)))}%`;
 }
 
-function speakLocally(text, languageCode) {
+function browserSpeakFallback(text, languageCode) {
   if (!text || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -16,6 +16,26 @@ function speakLocally(text, languageCode) {
   const fallback = voices.find(voice => voice.lang?.toLowerCase().startsWith(`${base}-`));
   if (exact || fallback) utterance.voice = exact || fallback;
   window.speechSynthesis.speak(utterance);
+}
+
+async function speakLocally(text, languageCode, voice = null) {
+  if (!text) return;
+  try {
+    const status = await api('/api/tts/status');
+    if (status.configured && languageCode === 'en-GB') {
+      const result = await api('/api/tts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language_code: languageCode, voice, speed: 1.0 }),
+      });
+      const audio = new Audio(result.url);
+      await audio.play();
+      return;
+    }
+  } catch (error) {
+    console.warn('Local persistent TTS unavailable, using browser fallback:', error);
+  }
+  browserSpeakFallback(text, languageCode);
 }
 
 function renderLearningFeedback(container, result, languageCode, transcriptText = '') {
@@ -70,6 +90,41 @@ function renderLearningFeedback(container, result, languageCode, transcriptText 
 
   const audioButton = container.querySelector('.speak-generated-audio');
   if (audioButton) audioButton.addEventListener('click', () => speakLocally(audioText, languageCode));
+}
+
+async function attachAcousticButton(container, recordingId) {
+  try {
+    const status = await api('/api/pronunciation/status');
+    if (!status.configured || !recordingId) return;
+    const host = document.createElement('div');
+    host.className = 'learning-block';
+    host.innerHTML = `
+      <strong>Original audio signal</strong>
+      <p class="muted small">Praat can measure the recording itself. This is not yet a phoneme/accent score.</p>
+      <button type="button" class="ghost acoustic-button">👄 Measure acoustic signal</button>
+      <div class="acoustic-result muted small" hidden></div>`;
+    container.appendChild(host);
+    const button = host.querySelector('.acoustic-button');
+    const output = host.querySelector('.acoustic-result');
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.textContent = 'Measuring locally…';
+      try {
+        const result = await api(`/api/pronunciation/analyse-recording/${encodeURIComponent(recordingId)}`, { method: 'POST' });
+        const a = result.acoustics || {};
+        output.hidden = false;
+        output.innerHTML = `Duration: ${escapeHtml(a.duration_seconds ?? '')}s · voiced frames: ${escapeHtml(Math.round((a.pitch?.voiced_frame_ratio || 0) * 100))}% · pitch range: ${escapeHtml(a.pitch?.min_hz ?? '—')}–${escapeHtml(a.pitch?.max_hz ?? '—')} Hz<br>${escapeHtml(a.warning || '')}`;
+        button.textContent = '✓ Acoustic signal measured';
+      } catch (error) {
+        output.hidden = false;
+        output.textContent = error.message;
+        button.disabled = false;
+        button.textContent = 'Try acoustic analysis again';
+      }
+    });
+  } catch (error) {
+    console.warn(error);
+  }
 }
 
 async function focuslyraAnalyseWriting(event) {
@@ -141,6 +196,7 @@ async function focuslyraSaveAndAnalyseRecording(event) {
     try {
       const analysed = await api(`/api/learning/analyse-recording/${encodeURIComponent(recordingId)}`, { method: 'POST' });
       renderLearningFeedback(feedback, analysed, 'es-ES', analysed.transcript?.text || '');
+      await attachAcousticButton(feedback, recordingId);
       button.textContent = '✓ Analysed + remembered';
     } catch (analysisError) {
       feedback.hidden = false;
@@ -158,6 +214,43 @@ async function focuslyraSaveAndAnalyseRecording(event) {
   }
 }
 
+async function injectVoiceCalibration() {
+  const panel = document.getElementById('mode-pronounce');
+  if (!panel || document.getElementById('rpVoiceCalibration')) return;
+  const section = document.createElement('div');
+  section.id = 'rpVoiceCalibration';
+  section.className = 'feedback';
+  section.innerHTML = '<strong>🇬🇧 RP reference voice calibration</strong><p class="muted small">Checking local voice engine…</p>';
+  panel.appendChild(section);
+  try {
+    const status = await api('/api/tts/status');
+    if (!status.configured) {
+      section.innerHTML = '<strong>🇬🇧 RP reference voice calibration</strong><p class="muted small">Run <code>configure_local_tts.bat</code> after the Whisper download finishes. Browser speech remains a temporary fallback.</p>';
+      return;
+    }
+    const calibration = await api('/api/tts/calibration-prompts');
+    const sample = calibration.prompts?.find(p => p.id === 'connected') || calibration.prompts?.[0];
+    section.innerHTML = `
+      <strong>🇬🇧 RP reference voice calibration</strong>
+      <p class="muted small">Audition the British candidates. We will not label one "RP reference" until it passes this calibration.</p>
+      <p>${escapeHtml(sample?.text || '')}</p>
+      <div class="target-list calibration-voices">${(calibration.voices || []).map(v => `<button type="button" class="ghost calibration-voice" data-voice="${escapeHtml(v)}">🔊 ${escapeHtml(v)}</button>`).join('')}</div>
+      <p class="muted small">${escapeHtml(calibration.warning || '')}</p>`;
+    section.querySelectorAll('.calibration-voice').forEach(button => {
+      button.addEventListener('click', async () => {
+        const old = button.textContent;
+        button.textContent = 'Generating…';
+        button.disabled = true;
+        await speakLocally(sample.text, 'en-GB', button.dataset.voice);
+        button.textContent = old;
+        button.disabled = false;
+      });
+    });
+  } catch (error) {
+    section.innerHTML = `<strong>🇬🇧 RP reference voice calibration</strong><p class="muted small">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 async function injectLearningEngineStatus() {
   const side = document.querySelector('.study-side');
   if (!side || document.getElementById('localLearningStatus')) return;
@@ -167,12 +260,19 @@ async function injectLearningEngineStatus() {
   box.innerHTML = '<strong>🧠 Local learning engine</strong><span class="muted small">Checking…</span>';
   side.prepend(box);
   try {
-    const [providers, audio] = await Promise.all([api('/api/providers'), api('/api/audio/status')]);
+    const [providers, audio, tts, pronunciation] = await Promise.all([
+      api('/api/providers'),
+      api('/api/audio/status'),
+      api('/api/tts/status'),
+      api('/api/pronunciation/status'),
+    ]);
     const ollama = providers.find(provider => provider.id === 'ollama');
     box.innerHTML = `
       <strong>🧠 Local learning engine</strong>
       <span class="${ollama?.enabled ? 'engine-ok' : 'engine-warn'}">${ollama?.enabled ? 'Qwen ready' : 'Qwen not ready'}</span>
       <small>Speech transcription: ${audio.local_stt_configured ? 'ready' : 'setup needed'}</small>
+      <small>Persistent local voice: ${tts.configured ? 'Kokoro ready' : 'browser fallback'}</small>
+      <small>Acoustic pronunciation: ${pronunciation.configured ? 'ready' : 'setup optional'}</small>
       <small>Per-token cost: €0</small>`;
   } catch (error) {
     box.innerHTML = `<strong>🧠 Local learning engine</strong><small>${escapeHtml(error.message)}</small>`;
@@ -185,3 +285,4 @@ const focuslyraRecordingButton = document.getElementById('saveRecording');
 if (focuslyraRecordingButton) focuslyraRecordingButton.addEventListener('click', focuslyraSaveAndAnalyseRecording, { capture: true });
 
 injectLearningEngineStatus();
+injectVoiceCalibration();
