@@ -18,16 +18,34 @@ def _profile_path(user_id: str | None = None) -> Path:
     return user_private_dir(user_id) / "learner" / "profile.json"
 
 
-def load_profile(user_id: str | None = None) -> dict[str, Any]:
-    path = _profile_path(user_id)
-    source = path if path.exists() else DEFAULT_PROFILE_PATH
+def _read_profile(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(source.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ProfileServiceError("Learner profile could not be loaded.") from exc
     if not isinstance(value, dict):
         raise ProfileServiceError("Learner profile must be a JSON object.")
-    result = dict(value)
+    return value
+
+
+def _merge_defaults(defaults: dict[str, Any], stored: dict[str, Any]) -> dict[str, Any]:
+    """Merge missing schema/default fields without overwriting learner choices."""
+    result = dict(defaults)
+    for key, value in stored.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            nested = dict(result[key])
+            nested.update(value)
+            result[key] = nested
+        else:
+            result[key] = value
+    return result
+
+
+def load_profile(user_id: str | None = None) -> dict[str, Any]:
+    defaults = _read_profile(DEFAULT_PROFILE_PATH)
+    path = _profile_path(user_id)
+    stored = _read_profile(path) if path.exists() else {}
+    result = _merge_defaults(defaults, stored)
     result["user_id"] = user_id or current_user_id()
     return result
 
