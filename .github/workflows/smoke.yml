@@ -32,6 +32,7 @@ jobs:
           node --check static/learning.js
           node --check static/voice-settings.js
           node --check static/phase2.js
+          node --check static/dashboard-evidence.js
 
       - name: Validate JSON data
         run: |
@@ -111,7 +112,7 @@ jobs:
           assert app.title == 'Focuslyra'
           paths = {route.path for route in app.routes}
           required = {
-              '/api/review/due', '/api/concepts', '/api/memory/search', '/api/progress',
+              '/api/study/plan', '/api/review/due', '/api/concepts', '/api/memory/search', '/api/progress',
               '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog'
           }
           missing = required - paths
