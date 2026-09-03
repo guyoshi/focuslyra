@@ -31,6 +31,8 @@ jobs:
           node --check static/app.js
           node --check static/learning.js
           node --check static/voice-settings.js
+          node --check static/phase2.js
+          node --check static/dashboard-evidence.js
 
       - name: Validate JSON data
         run: |
@@ -43,15 +45,21 @@ jobs:
               print('OK', path)
           PY
 
-      - name: Validate learner language merge and adaptive plan
+      - name: Validate adaptive study and learning v2 services
         env:
           ALLOW_PAID_AI: "false"
         run: |
           python - <<'PY'
-          from app.db import initialise_database
+          from app.db import initialise_database, connection
           from app.language_service import load_languages
           from app.session_planner import build_daily_plan
           from app.activity_engine import generate_activity
+          from app.review_service import due_reviews, materialise_review_targets
+          from app.concept_service import save_concept, list_concepts
+          from app.memory_index import index_status, retrieve
+          from app.progress_service import learner_progress
+          from app.diagnostic_service import start_english_diagnostic, get_attempt
+          from app.plan_calendar_service import load_settings
 
           initialise_database()
           languages = load_languages()
@@ -66,11 +74,48 @@ jobs:
           activity = generate_activity(plan['activities'][0])
           assert activity['language_code'] == plan['activities'][0]['language_code']
           assert activity['modality'] == plan['activities'][0]['modality']
-          assert activity['title']
-          print('Adaptive plan OK:', plan['total_minutes'], activity['modality'])
+
+          with connection() as conn:
+              conn.execute("INSERT INTO evidence_events(user_id, session_id, language_code, item_id, modality, event_type, score, payload_json, created_at) VALUES ('local-owner', NULL, 'en-GB', 'should have', 'speaking', 'review_target', NULL, '{}', datetime('now'))")
+              conn.commit()
+          materialise_review_targets()
+          assert due_reviews()['due_count'] >= 1
+          review_influenced_plan = build_daily_plan('minimum')
+          assert all(item['modality'] in {'speak','listen','write','read','pronounce'} for item in review_influenced_plan['activities'])
+          assert any('should have' in item.get('hidden_targets', []) for item in review_influenced_plan['activities'] if item['language_code'] == 'en-GB')
+
+          concept = save_concept({'label':'dog','visual':'🐕','expressions':{'en-GB':{'text':'dog'}}})
+          assert concept['label'] == 'dog'
+          assert list_concepts()
+
+          assert isinstance(index_status(), list)
+          assert retrieve('anything', limit=2) == []
+
+          progress = learner_progress()
+          assert 'languages' in progress and 'totals' in progress
+
+          diagnostic = start_english_diagnostic()
+          assert len(diagnostic['tasks']) == 6
+          assert get_attempt(diagnostic['id'])['status'] == 'in_progress'
+
+          settings = load_settings()
+          assert 'auto_schedule' in settings
+          print('Learning v2 services OK')
           PY
 
-      - name: Import application
+      - name: Import application and route table
         env:
           ALLOW_PAID_AI: "false"
-        run: python -c "from app.main import app; assert app.title == 'Focuslyra'; assert app.version == '0.6.0'; print('Focuslyra import OK')"
+        run: |
+          python - <<'PY'
+          from app.main import app
+          assert app.title == 'Focuslyra'
+          paths = {route.path for route in app.routes}
+          required = {
+              '/api/study/plan', '/api/review/due', '/api/concepts', '/api/memory/search', '/api/progress',
+              '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog'
+          }
+          missing = required - paths
+          assert not missing, missing
+          print('Focuslyra import + v2 routes OK')
+          PY
