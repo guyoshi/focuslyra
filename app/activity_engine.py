@@ -16,6 +16,51 @@ class ActivityEngineError(RuntimeError):
 
 SUPPORTED_MODALITIES = {"speak", "listen", "write", "read", "pronounce"}
 
+FALLBACK_CONTENT = {
+    "en-GB": {
+        "listen": "I was going to call you after work, but I ended up getting home later than I expected.",
+        "read": "I had planned to leave early, but the weather changed and I decided to wait another hour.",
+        "pronounce": "I thought the weather would be warmer by the time we arrived.",
+        "placeholder": "Write in English…",
+    },
+    "es-ES": {
+        "listen": "Hoy pensaba salir temprano, pero al final tuve que quedarme en casa un poco más.",
+        "read": "Esta mañana tenía varias cosas que hacer, así que preparé todo antes de salir de casa.",
+        "pronounce": "Esta mañana he salido temprano porque tenía varias cosas que hacer.",
+        "placeholder": "Escribe en español…",
+    },
+    "ja-JP": {
+        "listen": "今日は朝ご飯を食べてから、町へ行きました。",
+        "read": "今日は天気がいいので、午後に公園へ行きます。",
+        "pronounce": "今日はゆっくり日本語を練習します。",
+        "placeholder": "日本語で書いてください…",
+    },
+    "it-IT": {
+        "listen": "Oggi volevo uscire presto, ma alla fine sono rimasto a casa un po' di più.",
+        "read": "Questa mattina avevo alcune cose da fare, quindi ho preparato tutto prima di uscire.",
+        "pronounce": "Questa mattina sono uscito presto perché avevo molte cose da fare.",
+        "placeholder": "Scrivi in italiano…",
+    },
+    "fr-FR": {
+        "listen": "Aujourd'hui, je voulais sortir tôt, mais finalement je suis resté un peu plus longtemps à la maison.",
+        "read": "Ce matin, j'avais plusieurs choses à faire, alors j'ai tout préparé avant de sortir.",
+        "pronounce": "Ce matin, je suis parti tôt parce que j'avais plusieurs choses à faire.",
+        "placeholder": "Écris en français…",
+    },
+    "de-DE": {
+        "listen": "Heute wollte ich früh losgehen, aber am Ende bin ich etwas länger zu Hause geblieben.",
+        "read": "Heute Morgen hatte ich einige Dinge zu erledigen, deshalb habe ich alles vor dem Ausgehen vorbereitet.",
+        "pronounce": "Heute Morgen bin ich früh losgegangen, weil ich einiges zu erledigen hatte.",
+        "placeholder": "Schreib auf Deutsch…",
+    },
+    "ar": {
+        "listen": "اليوم كنت أريد أن أخرج مبكراً، لكنني بقيت في البيت وقتاً أطول قليلاً.",
+        "read": "هذا الصباح كان عندي بعض الأشياء التي يجب أن أفعلها، لذلك جهزت كل شيء قبل أن أخرج.",
+        "pronounce": "هذا الصباح خرجت مبكراً لأن عندي أشياء كثيرة أفعلها.",
+        "placeholder": "اكتب بالعربية…",
+    },
+}
+
 
 def _language(language_code: str, user_id: str | None = None) -> dict[str, Any]:
     for language in load_languages(user_id):
@@ -26,20 +71,22 @@ def _language(language_code: str, user_id: str | None = None) -> dict[str, Any]:
 
 def _fallback_activity(slot: dict[str, Any], language: dict[str, Any]) -> dict[str, Any]:
     modality = str(slot.get("modality") or "speak")
-    name = str(language.get("name") or slot.get("language_code") or "language")
-    variety = str(language.get("target_variety") or language.get("code") or "")
+    code = str(language.get("code") or slot.get("language_code") or "")
+    name = str(language.get("name") or code or "language")
+    variety = str(language.get("target_variety") or code)
     target = (slot.get("hidden_targets") or [""])[0]
+    samples = FALLBACK_CONTENT.get(code, FALLBACK_CONTENT["en-GB"])
 
     if modality == "listen":
         return {
             "title": "Listen, understand, respond",
-            "instructions": "Listen without reading a transcript. Say or write what you understood, then respond naturally.",
+            "instructions": "Listen without reading a transcript. First catch the meaning, then answer naturally.",
             "prompt": "What did the speaker mean, and how would you answer?",
-            "audio_text": f"This is a short {name} listening practice for today.",
+            "audio_text": samples["listen"],
             "input_text": "",
             "reference_text": "",
             "target_feature": "natural listening",
-            "placeholder": "Your answer…",
+            "placeholder": samples["placeholder"],
         }
     if modality == "write":
         return {
@@ -50,27 +97,27 @@ def _fallback_activity(slot: dict[str, Any], language: dict[str, Any]) -> dict[s
             "input_text": "",
             "reference_text": "",
             "target_feature": target or "active production",
-            "placeholder": f"Write in {name}…",
+            "placeholder": samples["placeholder"],
         }
     if modality == "read":
         return {
             "title": "Read for meaning",
             "instructions": "Read once for meaning before analysing individual words.",
-            "prompt": "Explain the main idea in your own words.",
+            "prompt": "Explain the main idea in your own words, then answer with one related sentence.",
             "audio_text": "",
-            "input_text": f"A short adaptive {name} reading will appear here when the local model is available.",
+            "input_text": samples["read"],
             "reference_text": "",
             "target_feature": target or "reading comprehension",
-            "placeholder": "Your explanation…",
+            "placeholder": samples["placeholder"],
         }
     if modality == "pronounce":
         return {
             "title": "Pronunciation reference",
-            "instructions": f"Listen to the reference in {variety}, then record yourself saying the same sentence naturally.",
-            "prompt": "Match the sounds, timing and sentence melody rather than spelling.",
+            "instructions": f"Listen to the reference for {variety}, then record the same sentence naturally.",
+            "prompt": "Match intelligibility, timing and sentence melody rather than spelling every word slowly.",
             "audio_text": "",
             "input_text": "",
-            "reference_text": "I would rather practise a short sentence carefully than rush through it.",
+            "reference_text": samples["pronounce"],
             "target_feature": target or "timing and prosody",
             "placeholder": "",
         }
@@ -114,8 +161,6 @@ def _clean(value: dict[str, Any], slot: dict[str, Any], language: dict[str, Any]
         "model": str(value.get("model") or "rules"),
     }
 
-    # Listening must have something to play. Pronunciation must have a known
-    # reference so acoustic comparison is meaningful.
     if modality == "listen" and not clean["audio_text"]:
         clean["audio_text"] = fallback["audio_text"]
     if modality == "pronounce" and not clean["reference_text"]:
