@@ -328,6 +328,52 @@ function watchLanguageSettings() {
   enhancePlacementButtons();
 }
 
+function resetStaticStudyDemo() {
+  const study = document.getElementById('study');
+  if (!study) return;
+
+  const panels = study.querySelectorAll('.mode-panel');
+  panels.forEach(panel => { panel.innerHTML = ''; });
+  const speak = document.getElementById('mode-speak');
+  if (speak) {
+    speak.innerHTML = `
+      <span class="badge">ADAPTIVE STUDY</span>
+      <h2>No demo lesson loaded.</h2>
+      <p class="prompt">Focuslyra will build the activity from the current learner's real level, priorities and saved evidence.</p>
+      <button id="studyStartSession" type="button" class="primary">▶ Start adaptive session</button>`;
+  }
+
+  const side = study.querySelector('.study-side');
+  if (side) {
+    side.innerHTML = `
+      <div id="localLearningStatus"></div>
+      <h3>Session intelligence</h3>
+      <p class="muted">Targets will appear after the adaptive plan is built for the current learner.</p>
+      <hr />
+      <h3>Attention rescue</h3>
+      <p class="muted">If attention drops during a session, Focuslyra can change the activity while keeping the same learning target.</p>`;
+  }
+
+  if (typeof injectLearningEngineStatus === 'function') {
+    injectLearningEngineStatus(true).catch?.(console.error);
+  }
+}
+
+// The old HTML carried a Spanish hotel roleplay as a visual prototype. Never
+// expose prototype lesson content as if it were the learner's actual session.
+// Opening Study now means: build the adaptive plan for the selected learner.
+document.addEventListener('click', event => {
+  const studyNav = event.target.closest?.('.nav-button[data-view="study"]');
+  const studyStart = event.target.closest?.('#studyStartSession');
+  if (!studyNav && !studyStart) return;
+  if (typeof startAdaptiveSession !== 'function') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  startAdaptiveSession('normal');
+}, true);
+
+document.addEventListener('DOMContentLoaded', resetStaticStudyDemo, { once: true });
+
 loadLearnerSwitcher().catch(error => console.warn('Learner switcher unavailable:', error));
 watchLanguageSettings();
 ensurePlacementModal();
