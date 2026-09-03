@@ -36,10 +36,9 @@ def _settings_from_profile(profile: dict[str, Any]) -> dict[str, dict[str, Any]]
 def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
     """Return the global language catalogue merged with learner-owned settings.
 
-    Catalogue fields describe the language itself. Priority/status/current state/goals
-    belong to the learner and are stored in that learner's profile. Legacy catalogue
-    fields are accepted only as migration/default fallbacks so older installs keep
-    working without leaking one learner's priorities into another account.
+    The catalogue describes languages supported by Focuslyra. Priority, status,
+    target variety, current state and goals belong to the learner. Legacy fields
+    remain accepted only as fallback so old local installs migrate cleanly.
     """
     profile = load_profile(user_id)
     settings = _settings_from_profile(profile)
@@ -54,14 +53,22 @@ def load_languages(user_id: str | None = None) -> list[dict[str, Any]]:
 
         merged["priority"] = int(learner.get("priority", base.get("default_priority", base.get("priority", 5))))
         merged["status"] = str(learner.get("status", base.get("default_status", base.get("status", "parked"))))
+        merged["target_variety"] = str(
+            learner.get("target_variety", base.get("default_target_variety", base.get("target_variety", code)))
+        )
         merged["current_state"] = str(
             learner.get("current_state", base.get("default_current_state", base.get("current_state", "Not assessed yet.")))
         )
         goals = learner.get("goals", base.get("default_goals", base.get("goals", [])))
         merged["goals"] = list(goals) if isinstance(goals, list) else []
 
-        # Never expose legacy learner-specific defaults as writable catalogue fields.
-        for key in ("default_priority", "default_status", "default_current_state", "default_goals"):
+        for key in (
+            "default_priority",
+            "default_status",
+            "default_target_variety",
+            "default_current_state",
+            "default_goals",
+        ):
             merged.pop(key, None)
         result.append(merged)
     return result
@@ -93,6 +100,9 @@ def save_language_settings(updates: dict[str, dict[str, Any]], user_id: str | No
             except (TypeError, ValueError) as exc:
                 raise LanguageServiceError("Language priority must be a whole number.") from exc
             current["priority"] = max(1, min(9, priority))
+
+        if "target_variety" in changes and changes["target_variety"] is not None:
+            current["target_variety"] = str(changes["target_variety"]).strip()[:240]
 
         if "current_state" in changes and changes["current_state"] is not None:
             current["current_state"] = str(changes["current_state"]).strip()[:1000]
