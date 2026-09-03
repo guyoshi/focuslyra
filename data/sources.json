@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tinkos",
+    "name": "Tinkos",
+    "type": "git",
+    "repository": "guyoshi/Tinkos",
+    "branch": "main",
+    "mode": "read_only",
+    "enabled": true,
+    "include": ["Documentation/**", "documentation/**", "docs/**"],
+    "exclude": ["Library/**", "Temp/**", "Logs/**", "obj/**"],
+    "last_indexed_commit": null,
+    "permissions": {
+      "generate_reading": true,
+      "generate_conversations": true,
+      "generate_vocabulary_examples": true,
+      "answer_questions": true,
+      "modify_source": false
+    },
+    "instructions": "Use Tinkos as interest context for language exercises. Do not invent changes to the game as canonical project facts."
+  },
+  {
+    "id": "dimensoesinfinitas",
+    "name": "Books / Dimensoes Infinitas",
+    "type": "git",
+    "repository": "guyoshi/dimensoesinfinitas",
+    "branch": "main",
+    "mode": "read_only",
+    "enabled": true,
+    "include": ["**/*.md", "**/*.txt"],
+    "exclude": [".git/**"],
+    "last_indexed_commit": null,
+    "permissions": {
+      "generate_reading": true,
+      "generate_conversations": true,
+      "generate_vocabulary_examples": true,
+      "answer_questions": true,
+      "modify_source": false
+    },
+    "instructions": "Source material is canon. Language exercises and adaptations are temporary non-canon teaching material and must never be written back to the source repository."
+  }
+]
