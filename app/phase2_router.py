@@ -26,7 +26,7 @@ from .plan_calendar_service import (
 from .progress_service import learner_progress
 from .review_service import ReviewServiceError, due_reviews, grade_review
 
-router = APIRouter(prefix='/api', tags=['learning-v2'])
+router = APIRouter(tags=['learning-v2'])
 
 
 class ReviewGradePayload(BaseModel):
@@ -110,8 +110,7 @@ def memory_index_status():
 def memory_index_source(source_id: str, sync_first: bool = True):
     try:
         return {'ok': True, **index_source(source_id, sync_first=sync_first)}
-    except (MemoryIndexError, Exception) as exc:
-        # SourceSyncError is intentionally surfaced as a normal setup error too.
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
