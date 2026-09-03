@@ -15,7 +15,7 @@ from .diagnostic_service import (
     start_english_diagnostic,
 )
 from .learning_engine import LearningEngineError, analyse_submission
-from .memory_index import MemoryIndexError, index_source, index_status, retrieve
+from .memory_index import index_source, index_status, retrieve
 from .plan_calendar_service import (
     PlanCalendarError,
     auto_schedule_if_enabled,
@@ -25,6 +25,7 @@ from .plan_calendar_service import (
 )
 from .progress_service import learner_progress
 from .review_service import ReviewServiceError, due_reviews, grade_review
+from .session_planner import build_daily_plan
 
 router = APIRouter(tags=['learning-v2'])
 
@@ -65,6 +66,11 @@ class CalendarPlanPayload(BaseModel):
     mode: str = 'normal'
     window_start: str | None = None
     window_end: str | None = None
+
+
+@router.get('/study/plan')
+def study_plan(mode: str = 'normal'):
+    return build_daily_plan('minimum' if mode == 'minimum' else 'normal')
 
 
 @router.get('/review/due')
