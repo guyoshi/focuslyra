@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .db import initialise_database, save_session
 from .providers import get_provider_statuses, paid_ai_allowed
+from .source_manager import SourceSyncError, sync_git_source
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "static"
@@ -78,6 +79,15 @@ def languages() -> Any:
 @app.get("/api/sources")
 def sources() -> Any:
     return load_json("sources.json")
+
+
+@app.post("/api/sources/{source_id}/sync")
+def sync_source(source_id: str) -> dict[str, Any]:
+    try:
+        result = sync_git_source(source_id)
+    except SourceSyncError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "source": result}
 
 
 @app.get("/api/providers")
