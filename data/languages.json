@@ -1,0 +1,72 @@
+[
+  {
+    "code": "en-GB",
+    "name": "English",
+    "flag": "🇬🇧",
+    "priority": 1,
+    "status": "active",
+    "current_state": "Strong communication; advanced refinement needed.",
+    "target_variety": "Contemporary RP / modern standard southern British",
+    "goals": ["advanced fluency", "RP listening", "RP pronunciation", "grammatical automaticity", "active vocabulary"]
+  },
+  {
+    "code": "es-ES",
+    "name": "Spanish",
+    "flag": "🇪🇸",
+    "priority": 1,
+    "status": "active",
+    "current_state": "Not yet started.",
+    "target_variety": "Peninsular Spanish",
+    "goals": ["rapid conversational foundation", "listening", "speaking for future life in Spain"]
+  },
+  {
+    "code": "ja-JP",
+    "name": "Japanese",
+    "flag": "🇯🇵",
+    "priority": 2,
+    "status": "active",
+    "current_state": "Most hiragana known; katakana incomplete; beginner sentence patterns; little conversation ability.",
+    "target_variety": "Standard Japanese",
+    "goals": ["kana automaticity", "basic kanji through useful words", "conversation", "listening"]
+  },
+  {
+    "code": "it-IT",
+    "name": "Italian",
+    "flag": "🇮🇹",
+    "priority": 2,
+    "status": "maintenance",
+    "current_state": "Previously studied; dormant basic speaking; comprehension helped by Portuguese similarity.",
+    "target_variety": "Standard Italian",
+    "goals": ["reactivate vocabulary", "restore speaking", "travel fluency"]
+  },
+  {
+    "code": "fr-FR",
+    "name": "French",
+    "flag": "🇫🇷",
+    "priority": 3,
+    "status": "maintenance",
+    "current_state": "Basic communication; pronunciation sounds studied; slow listening; weak writing and reading confidence.",
+    "target_variety": "Standard Metropolitan French",
+    "goals": ["listening", "active vocabulary", "speaking fluency"]
+  },
+  {
+    "code": "ar",
+    "name": "Arabic",
+    "flag": "🇲🇦",
+    "priority": 4,
+    "status": "parked",
+    "current_state": "Not yet started.",
+    "target_variety": "To decide: spoken Moroccan Darija plus appropriate MSA support",
+    "goals": ["alphabet", "sound system", "basic speaking", "travel fluency"]
+  },
+  {
+    "code": "de-DE",
+    "name": "German",
+    "flag": "🇩🇪",
+    "priority": 4,
+    "status": "parked",
+    "current_state": "Not yet started.",
+    "target_variety": "Standard German",
+    "goals": ["basic speaking", "listening", "later fluency"]
+  }
+]
