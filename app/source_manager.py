@@ -44,6 +44,12 @@ def find_source(source_id: str) -> dict[str, Any]:
     raise SourceSyncError(f"Unknown memory source: {source_id}")
 
 
+def _clone_source(target: Path, branch: str, remote_url: str) -> None:
+    if target.exists():
+        shutil.rmtree(target)
+    _run_git(["clone", "--depth", "1", "--branch", branch, remote_url, str(target)])
+
+
 def sync_git_source(source_id: str) -> dict[str, Any]:
     source = find_source(source_id)
     if source.get("type") != "git":
@@ -60,12 +66,16 @@ def sync_git_source(source_id: str) -> dict[str, Any]:
     remote_url = f"https://github.com/{repository}.git"
 
     if not (target / ".git").exists():
-        if target.exists():
-            shutil.rmtree(target)
-        _run_git(["clone", "--depth", "1", "--branch", branch, remote_url, str(target)])
+        _clone_source(target, branch, remote_url)
     else:
+        # The source directory is a disposable read-only cache. Keep origin correct,
+        # fetch the configured branch, and reset to FETCH_HEAD. A shallow fetch such
+        # as `git fetch origin main --depth 1` is not guaranteed to create/update
+        # refs/remotes/origin/main, so resetting to origin/main can fail with
+        # "ambiguous argument 'origin/main'" even though the fetch itself succeeded.
+        _run_git(["remote", "set-url", "origin", remote_url], cwd=target)
         _run_git(["fetch", "origin", branch, "--depth", "1"], cwd=target)
-        _run_git(["reset", "--hard", f"origin/{branch}"], cwd=target)
+        _run_git(["reset", "--hard", "FETCH_HEAD"], cwd=target)
 
     commit = _run_git(["rev-parse", "HEAD"], cwd=target)
     return {
