@@ -5,110 +5,176 @@ This file is the source of truth for what the current MVP actually does. UI exis
 Legend:
 
 - ✅ functional: real end-to-end behaviour exists after its stated local setup;
-- 🟡 partial: useful foundation exists, but important behaviour is still prototype/static;
-- ⬜ planned: shell or design exists, but it is not yet a real learning feature.
+- 🟡 partial: useful foundation exists, but important behaviour is still incomplete;
+- ⬜ planned: shell/design exists, but it is not yet a real learning feature.
+
+## Current milestone — 0.6 adaptive study
+
+The first five core blocks are now connected:
+
+1. learner-owned language settings;
+2. adaptive daily Session Planner;
+3. dynamic Speak/Write and generated activities;
+4. local Whisper + Kokoro audio path;
+5. controlled-reference Pronunciation Engine v1.
+
+The free local stack can be configured with `finish_local_setup.bat` after the base Python setup exists.
 
 ## Learn
 
-### Dashboard — 🟡 partial
+### Dashboard — ✅/🟡
 
 Functional:
-- renders configured language profiles;
-- opens Study and 10-minute mode.
+- renders learner-scoped language profiles;
+- normal and minimum-day entry points;
+- the daily planner uses real priorities, study recency and stored evidence;
+- study plan allocation is generated from learner data.
 
-Still prototype:
-- today's minutes/language allocation is static;
-- progress numbers are not yet calculated from evidence;
-- adaptive daily planner is not yet choosing the session.
+Still incomplete:
+- overall progress percentages shown on language cards are still prototype values;
+- dashboard plan preview currently shares the Study endpoint and should later use a lightweight plan-only endpoint.
 
-### Study — 🟡 partial, with real working components
+### Session Planner — ✅ v1
 
-#### Speak — ✅/🟡
+Functional:
+- learner-specific priority/status;
+- active vs maintenance languages;
+- recent session frequency;
+- days since last practice;
+- recent review targets;
+- recent skill evidence;
+- normal and minimum-day session durations;
+- distribution across Speak, Listen, Write, Read and Pronounce;
+- planner remains deterministic and usable even if the LLM is temporarily unavailable.
 
-Functional after local audio + Ollama setup:
+The planner decides **what needs practice**. The Activity Engine decides **how to present it**.
+
+### Study — ✅/🟡
+
+Pressing `Start today's session` now creates a real plan and generated activity sequence. Activities advance through the plan and save evidence after analysed attempts.
+
+A learner can also request another activity wrapper without discarding the current learning target.
+
+#### Speak — ✅ v1
+
+After Qwen + Whisper local setup:
+- activity generated for the selected language/current learner state;
 - browser microphone recording;
-- local recording persistence;
+- original recording preserved locally;
 - Whisper local transcription;
-- Qwen/Ollama language analysis;
-- feedback/evidence persistence;
-- original audio is preserved for later pronunciation analysis.
+- Qwen local language assessment;
+- corrections/scores/retrieval targets stored as learner evidence;
+- continue to the next planned activity.
 
-Still prototype:
-- the displayed Spanish hotel task is hard-coded;
-- the next generated activity is not yet driving the whole Study UI automatically;
-- real-time AI conversation is not implemented.
+Not implemented:
+- true low-latency realtime AI voice conversation.
 
-#### Write — ✅/🟡
+#### Write — ✅ v1
 
-Functional after Ollama setup:
-- preserves learner response;
-- local AI analysis;
-- scores/corrections/review targets;
-- evidence persistence;
-- next-activity payload.
+After Qwen setup:
+- dynamic prompt per language;
+- original learner response preserved;
+- local AI assessment;
+- corrections/scores/retrieval targets stored;
+- no Spanish-specific hard-coded analysis path.
 
-Still prototype:
-- the visible Spanish prompt is hard-coded;
-- curriculum/session generation is not yet dynamic.
+#### Listen — ✅ v1 where a voice engine is available
 
-#### Listen — ⬜ planned shell
+Functional:
+- adaptive listening passage generation;
+- target passage hidden before the attempt;
+- Kokoro persistent local WAV generation/caching for supported languages;
+- configured listening voice profile;
+- browser/system voice fallback;
+- learner comprehension response analysed by Qwen;
+- transcript reveal after the attempt.
 
-Current button demonstrates the intended flow only.
+Limitations:
+- Kokoro does not cover every language currently configured in Focuslyra;
+- German/Arabic can use browser/system speech until another persistent local TTS engine such as Piper is added.
 
-Local persistent TTS/cached WAV infrastructure exists separately, but listening exercises are not yet generated, scored and scheduled end-to-end.
+#### Read — ✅ v1
 
-#### Read — ⬜ planned shell
+Functional:
+- adaptive target-language passage generation;
+- learner comprehension response;
+- Qwen assessment aware that the modality is reading comprehension;
+- RTL direction support is available from the language catalogue.
 
-Current Japanese text is static. Adaptive reading generation from learner vocabulary/memory is not implemented yet.
+The richer vocabulary/concept-aware reading generator is a later milestone.
 
-#### Pronounce — 🟡 partial
+#### Pronounce — ✅/🟡 v1
 
-Available/being configured:
-- local acoustic measurements through Praat/Parselmouth;
-- local TTS reference voice calibration infrastructure;
-- persistent WAV generation/caching;
-- configurable voice profile per language.
+Controlled-reference pronunciation practice is now functional after Whisper + Kokoro + pronunciation setup.
 
-Not complete:
-- phoneme alignment;
-- sound-by-sound target ranges;
-- reliable accent/phoneme scoring;
-- longitudinal pronunciation dashboard.
+V1 measures real signals rather than asking a text model to guess pronunciation:
+- learner original audio;
+- Whisper controlled-sentence intelligibility;
+- duration/timing similarity;
+- voiced/quiet-frame rhythm similarity;
+- broad pitch-contour/prosody-shape similarity;
+- local reference WAV generated through the selected reference voice;
+- results stored as learner evidence over time.
+
+Important limitation:
+- `practice_similarity` is **not** a native-accent percentage;
+- exact sound/phoneme accuracy is deliberately `null` until forced alignment and language/accent-specific calibration ranges are implemented;
+- therefore Focuslyra v1 must not claim that a specific `/θ/`, vowel or consonant is correct/incorrect from the global score alone.
 
 ### Review — ⬜ planned shell
 
-The UI exists, but the buttons do not yet run the real spaced-repetition/evidence scheduler.
+Evidence/review targets already exist and the Session Planner can feed them back into future activities, but the dedicated Review screen does not yet run the real spaced-repetition scheduler.
 
 ### Progress — ⬜ planned shell
 
-The UI exists. Current scores are prototype values, not learner-derived measurements.
+Evidence is real; the visible Progress dashboard is not yet computed from that evidence. Current progress numbers are prototype values.
 
-## Library
+## Memory
 
 ### Concepts — ⬜ planned shell
 
-The multilingual concept model is designed, including emoji-first visuals, but the displayed DOG concept is static.
-
-Needed:
-- persistent concept store;
-- language expressions/senses;
+The multilingual concept architecture is designed, including:
+- one concept across languages;
 - recognition vs production evidence;
-- scheduler integration;
-- reusable global images/audio.
+- emoji-first visual policy;
+- reusable global image/audio assets.
 
-### Memory — 🟡 partial
+The displayed example is still static. Persistent concept CRUD/scheduler integration is pending.
+
+### Sources — 🟡 partial
 
 Functional backend foundation:
 - configured read-only Git sources;
-- source sync service exists.
+- Git source sync service.
 
-Still missing:
-- user-facing source configuration;
+Missing:
+- full source-management UI;
 - indexing/chunking;
 - semantic retrieval/RAG;
-- automatic use in exercise generation.
+- automatic interest-memory use during activity generation.
 
 ## Settings
+
+### Learner profile — ✅
+
+- learner-scoped profile;
+- native language;
+- normal/minimum session duration;
+- learning focus;
+- attention strategy;
+- accent importance.
+
+### Languages — ✅ v1
+
+The global `data/languages.json` is now a learner-neutral catalogue.
+Learner-specific fields live in the learner profile:
+- priority;
+- active/maintenance/parked state;
+- target variety/accent;
+- current learner state;
+- goals.
+
+This prevents one future user's priorities from modifying another user's language catalogue.
 
 ### Google Calendar — ✅ after OAuth configuration
 
@@ -118,67 +184,67 @@ Implemented:
 - Focuslyra-owned calendar;
 - availability calendar selection;
 - free-slot search;
-- smart earliest-slot scheduling;
-- reminders on study events;
+- earliest-slot scheduling;
+- study reminders;
 - upcoming Focuslyra events.
 
-Not yet automatic:
-- Learning Engine does not yet calculate the required session and schedule it without user action.
+Still pending:
+- automatic scheduling directly from the new daily Session Planner without user action.
 
-### Voices — ✅/🟡 after local TTS configuration
+### Voices — ✅/🟡
 
 Implemented:
-- per-language voice profiles;
-- engine choice;
-- default/reference/conversation/listening voice choices;
-- speed choice;
-- browser/system voice discovery;
-- local Kokoro voice discovery;
-- preview;
-- user-scoped persistence.
+- voice profile per language;
+- default/reference/conversation/listening roles;
+- engine and speed selection;
+- browser/system voices;
+- Kokoro local voice discovery;
+- persistent local WAV cache for supported languages.
 
-Coverage depends on installed voice engines. Additional TTS engines can be added later through the provider/router layer.
+More local engines can be added through the provider/router architecture.
 
 ### AI — 🟡
 
 Functional:
-- detects local Ollama/provider status;
-- Qwen local is used by the Learning Engine;
-- paid AI remains disabled by default.
+- Ollama/Qwen local activity generation and assessment;
+- paid AI remains disabled by default;
+- rule-based multilingual activity fallback when Ollama cannot answer.
 
-Not implemented end-to-end:
+Still not implemented end-to-end:
 - Gemini free fallback;
 - Groq free fallback;
-- Claude/OpenAI provider calls;
-- automatic provider routing based on task/cost/quality.
+- Claude/OpenAI routing;
+- task/cost/quality-aware provider orchestration.
 
 ## Core infrastructure
 
 ### Learner memory/evidence — ✅ foundation
 
-- SQLite sessions;
-- writings;
+- user-scoped SQLite sessions;
+- writings/responses;
 - AI feedback;
 - evidence events;
-- recent evidence fed back into later local AI analysis;
-- records are now user-scoped through `user_id`.
+- recent evidence fed into later assessments;
+- retrieval targets fed into later planned activities.
 
-The actual spaced repetition/mastery algorithm is still pending.
+A formal spaced-repetition/mastery scheduler is the next major memory milestone.
 
 ### Commercial-ready seams — ✅ foundation
 
 - deployment mode configuration;
-- current-user context abstraction;
-- user-scoped database records;
-- user-scoped voice preferences;
+- current-user abstraction;
+- user-scoped DB records;
+- user-scoped profile/language/voice/media data;
 - configurable data/private/media roots;
 - replaceable AI/TTS direction;
-- private secrets/media excluded from Git.
+- secrets/private media excluded from Git.
 
 See `COMMERCIAL_FOUNDATIONS.md`.
 
-## What "usable" means today
+## What "usable" means now
 
-Once Qwen/Ollama and Whisper are configured, Focuslyra can already be used to record or write a response, analyse the language locally, save evidence and receive feedback/next-task guidance.
+After running the free local setup, Focuslyra 0.6 can already be used as a daily adaptive study loop:
 
-It is **not yet a complete adaptive language course**. The next major product milestone is to make the Study screen dynamically choose activities from learner evidence and to make Review/Progress/Concepts consume that same evidence instead of showing prototype content.
+`planner → generated activity → learner speaks/writes/listens/reads/pronounces → local analysis → evidence → next planned activity`
+
+It is **not yet the complete Focuslyra product**. Review, real Progress, Concepts/visual vocabulary, Memory RAG, automatic Calendar scheduling and mobile/PWA remain later milestones.
