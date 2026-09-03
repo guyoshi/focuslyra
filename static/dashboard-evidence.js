@@ -55,4 +55,14 @@
   dashboardButton?.addEventListener('click', refreshDashboardEvidence);
   setTimeout(refreshDashboardEvidence, 0);
   window.FocuslyraDashboard = { refresh: refreshDashboardEvidence };
+
+  // Language settings are a separate enhancement layer: every supported
+  // language is visible in Settings, while only learner-selected languages
+  // enter the dashboard and adaptive planner.
+  if (!document.querySelector('script[data-focuslyra-language-settings]')) {
+    const script = document.createElement('script');
+    script.src = '/static/language-settings.js';
+    script.dataset.focuslyraLanguageSettings = '1';
+    document.body.appendChild(script);
+  }
 })();
