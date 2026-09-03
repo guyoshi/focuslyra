@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions
 cd /d "%~dp0"
 title Focuslyra Setup
@@ -8,23 +9,35 @@ echo  Focuslyra Setup
 echo ==================================================
 echo.
 
-set "PY_CMD="
-where py >nul 2>nul
-if not errorlevel 1 set "PY_CMD=py"
+call :find_python
+if defined PY_CMD goto :python_ready
 
-if not defined PY_CMD (
-  where python >nul 2>nul
-  if not errorlevel 1 set "PY_CMD=python"
+echo [Focuslyra] Python 3.11+ was not found.
+echo [Focuslyra] Trying to install Python 3.12 automatically...
+echo.
+
+where winget >nul 2>nul
+if errorlevel 1 goto :no_winget
+
+winget install --id Python.Python.3.12 -e --scope user --accept-package-agreements --accept-source-agreements
+if errorlevel 1 goto :python_install_failed
+
+rem The current terminal may not receive the updated PATH immediately,
+rem so check both launchers and the standard per-user install path.
+call :find_python
+if defined PY_CMD goto :python_ready
+
+if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
+  set "PY_CMD=\"%LocalAppData%\Programs\Python\Python312\python.exe\""
+  goto :python_ready
 )
 
-if not defined PY_CMD (
-  echo [ERROR] Python was not found on this PC.
-  echo Install Python 3.11 or newer from https://www.python.org/downloads/
-  echo IMPORTANT: enable "Add python.exe to PATH" during installation.
-  goto :failed
-)
+echo [Focuslyra] Python appears to have been installed, but this terminal
+echo [Focuslyra] cannot see it yet. Close this window and run run.bat again.
+goto :failed
 
-echo [Focuslyra] Using Python launcher: %PY_CMD%
+:python_ready
+echo [Focuslyra] Using Python: %PY_CMD%
 %PY_CMD% -c "import sys; print('[Focuslyra] Python', sys.version.split()[0]); raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
 if errorlevel 1 (
   echo [ERROR] Focuslyra requires Python 3.11 or newer.
@@ -67,6 +80,51 @@ echo.
 echo [Focuslyra] Setup complete.
 echo [Focuslyra] Paid AI remains OFF unless you explicitly enable it in .env.
 exit /b 0
+
+:find_python
+set "PY_CMD="
+
+rem Prefer the Windows Python launcher when it points to a real modern Python.
+py -3.12 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PY_CMD=py -3.12"
+  exit /b 0
+)
+
+py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PY_CMD=py -3"
+  exit /b 0
+)
+
+rem `python.exe` may be only the Microsoft Store alias, so execute it to verify.
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
+if not errorlevel 1 (
+  set "PY_CMD=python"
+  exit /b 0
+)
+
+for %%V in (314 313 312 311) do (
+  if exist "%LocalAppData%\Programs\Python\Python%%V\python.exe" (
+    set "PY_CMD=\"%LocalAppData%\Programs\Python\Python%%V\python.exe\""
+    exit /b 0
+  )
+)
+exit /b 1
+
+:no_winget
+echo [ERROR] Windows Package Manager (winget) is not available.
+echo [ERROR] Python could not be installed automatically.
+echo.
+echo Install Python 3.12 from https://www.python.org/downloads/windows/
+echo Then run run.bat again.
+goto :failed
+
+:python_install_failed
+echo.
+echo [ERROR] Automatic Python installation failed.
+echo If Windows showed a permission prompt, allow it and run run.bat again.
+goto :failed
 
 :pip_failed
 echo.
