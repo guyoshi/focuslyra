@@ -11,5 +11,49 @@
     "primary": ["en-GB", "es-ES", "ja-JP"],
     "maintenance": ["it-IT", "fr-FR"],
     "parked": ["ar", "de-DE"]
+  },
+  "language_settings": {
+    "en-GB": {
+      "priority": 1,
+      "status": "active",
+      "current_state": "Strong communication; advanced refinement needed.",
+      "goals": ["advanced fluency", "RP listening", "RP pronunciation", "grammatical automaticity", "active vocabulary"]
+    },
+    "es-ES": {
+      "priority": 1,
+      "status": "active",
+      "current_state": "Not yet started.",
+      "goals": ["rapid conversational foundation", "listening", "speaking for future life in Spain"]
+    },
+    "ja-JP": {
+      "priority": 2,
+      "status": "active",
+      "current_state": "Most hiragana known; katakana incomplete; beginner sentence patterns; little conversation ability.",
+      "goals": ["kana automaticity", "basic kanji through useful words", "conversation", "listening"]
+    },
+    "it-IT": {
+      "priority": 2,
+      "status": "maintenance",
+      "current_state": "Previously studied; dormant basic speaking; comprehension helped by Portuguese similarity.",
+      "goals": ["reactivate vocabulary", "restore speaking", "travel fluency"]
+    },
+    "fr-FR": {
+      "priority": 3,
+      "status": "maintenance",
+      "current_state": "Basic communication; pronunciation sounds studied; slow listening; weak writing and reading confidence.",
+      "goals": ["listening", "active vocabulary", "speaking fluency"]
+    },
+    "ar": {
+      "priority": 4,
+      "status": "parked",
+      "current_state": "Not yet started.",
+      "goals": ["alphabet", "sound system", "basic speaking", "travel fluency"]
+    },
+    "de-DE": {
+      "priority": 4,
+      "status": "parked",
+      "current_state": "Not yet started.",
+      "goals": ["basic speaking", "listening", "later fluency"]
+    }
   }
 }
