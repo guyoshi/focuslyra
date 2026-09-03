@@ -79,6 +79,9 @@ jobs:
               conn.commit()
           materialise_review_targets()
           assert due_reviews()['due_count'] >= 1
+          review_influenced_plan = build_daily_plan('minimum')
+          assert all(item['modality'] in {'speak','listen','write','read','pronounce'} for item in review_influenced_plan['activities'])
+          assert any('should have' in item.get('hidden_targets', []) for item in review_influenced_plan['activities'] if item['language_code'] == 'en-GB')
 
           concept = save_concept({'label':'dog','visual':'🐕','expressions':{'en-GB':{'text':'dog'}}})
           assert concept['label'] == 'dog'
