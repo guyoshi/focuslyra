@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Focuslyra</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">F</div>
+        <div>
+          <strong>Focuslyra</strong>
+          <small>language workspace</small>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Main navigation">
+        <button class="nav-button active" data-view="dashboard">⌂ Dashboard</button>
+        <button class="nav-button" data-view="study">▶ Study</button>
+        <button class="nav-button" data-view="concepts">◉ Concepts</button>
+        <button class="nav-button" data-view="review">↻ Review</button>
+        <button class="nav-button" data-view="memory">▣ Memory</button>
+        <button class="nav-button" data-view="progress">◫ Progress</button>
+        <button class="nav-button" data-view="providers">⚙ AI</button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span id="serverStatus" class="status-dot">● Connecting</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Focuslyra</h1>
+          <p id="pageSubtitle">One place for every language you decide to learn.</p>
+        </div>
+        <div class="top-actions">
+          <span id="paidAiBadge" class="badge safe">Paid AI: OFF</span>
+          <button id="quickTen" class="ghost">10-minute mode</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="grid dashboard-grid">
+          <article class="card hero">
+            <span class="badge">TODAY</span>
+            <h2>Open the app. Press Start. Let the system choose the work.</h2>
+            <p>Focuslyra uses your priorities, weak points and review evidence instead of making you plan a course every day.</p>
+            <div class="hero-actions">
+              <button id="startSession" class="primary">▶ Start today's session</button>
+              <button id="makeInteresting" class="ghost">🎲 Make it interesting</button>
+            </div>
+          </article>
+
+          <article class="card today-card">
+            <h3>Suggested rhythm</h3>
+            <div class="activity"><span>🇪🇸 Spanish</span><strong>18m</strong></div>
+            <div class="activity"><span>🇬🇧 English</span><strong>14m</strong></div>
+            <div class="activity"><span>🇯🇵 Japanese</span><strong>10m</strong></div>
+            <p class="muted small">The learning engine will replace these static values with evidence-based planning.</p>
+          </article>
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <h2>Your languages</h2>
+            <p>Active, maintenance and parked languages can change without changing the application.</p>
+          </div>
+        </div>
+        <div id="languageGrid" class="language-grid"></div>
+      </section>
+
+      <section id="study" class="view">
+        <div class="study-layout">
+          <article class="card study-main">
+            <div class="mode-tabs">
+              <button class="mode-tab active" data-mode="speak">🎙 Speak</button>
+              <button class="mode-tab" data-mode="listen">🎧 Listen</button>
+              <button class="mode-tab" data-mode="write">✍ Write</button>
+              <button class="mode-tab" data-mode="read">👁 Read</button>
+              <button class="mode-tab" data-mode="pronounce">👄 Pronounce</button>
+            </div>
+
+            <div id="mode-speak" class="mode-panel active">
+              <span class="badge">🇪🇸 SPANISH • ROLEPLAY</span>
+              <h2>Your hotel reservation has disappeared.</h2>
+              <p class="prompt">Speak to the receptionist. Explain that you booked online, give your name, ask them to check again, and react naturally if they say the hotel is full.</p>
+              <div class="recording-zone">
+                <button id="recordButton" class="record-button" aria-label="Record audio">🎙</button>
+                <p id="recordStatus" class="muted">Press to record. Press again to stop.</p>
+                <audio id="recordingPlayback" controls hidden></audio>
+                <button id="saveRecording" class="primary" hidden>Save recording to Focuslyra</button>
+              </div>
+              <div id="recordFeedback" class="feedback" hidden></div>
+            </div>
+
+            <div id="mode-listen" class="mode-panel">
+              <span class="badge">🇬🇧 ENGLISH • RP LISTENING</span>
+              <h2>Hear first. Read later.</h2>
+              <p class="prompt">Listening activities will initially hide the transcript, ask what you understood, and reveal text only after your attempt.</p>
+              <button class="primary" id="demoListen">▶ Demo listening flow</button>
+              <div id="listenDemoResult" class="feedback" hidden></div>
+            </div>
+
+            <div id="mode-write" class="mode-panel">
+              <span class="badge">🇪🇸 SPANISH • WRITING</span>
+              <h2>Write before correcting yourself.</h2>
+              <p class="prompt">Describe your morning in 5–8 sentences. The original version is stored untouched.</p>
+              <textarea id="writingInput" placeholder="Escribe aquí..."></textarea>
+              <button id="saveWriting" class="primary">Save original draft</button>
+              <div id="writingResult" class="feedback" hidden></div>
+            </div>
+
+            <div id="mode-read" class="mode-panel">
+              <span class="badge">🇯🇵 JAPANESE • READING</span>
+              <h2>Known language, one new element.</h2>
+              <p class="japanese-sample">きょうは くるまで まちへ いきます。</p>
+              <p class="muted">Later this text will be generated from vocabulary and patterns already in your learner profile.</p>
+            </div>
+
+            <div id="mode-pronounce" class="mode-panel">
+              <span class="badge">🇬🇧 ENGLISH • SOUND LAB</span>
+              <h2>Perception before production</h2>
+              <p class="prompt">Sound maps will track perception, controlled production and spontaneous pronunciation separately.</p>
+              <div class="sound-pair"><span>ship</span><span>sheep</span></div>
+              <div class="skill-bars">
+                <div><span>/ɪ/ perception</span><i style="--score:58%"></i></div>
+                <div><span>/iː/ production</span><i style="--score:75%"></i></div>
+                <div><span>weak forms</span><i style="--score:42%"></i></div>
+              </div>
+            </div>
+          </article>
+
+          <aside class="card study-side">
+            <h3>Session intelligence</h3>
+            <p class="muted">Prototype targets. These will come from learner evidence.</p>
+            <div class="target-list">
+              <span>darse cuenta</span>
+              <span>past narration</span>
+              <span>RP weak forms</span>
+              <span>katakana シ / ツ</span>
+            </div>
+            <hr />
+            <h3>Attention rescue</h3>
+            <p class="muted">If this gets boring, change the activity, not the learning target.</p>
+            <button id="switchActivity" class="ghost full">Switch activity</button>
+          </aside>
+        </div>
+      </section>
+
+      <section id="concepts" class="view">
+        <article class="card">
+          <div class="section-heading compact">
+            <div>
+              <h2>Global concept memory</h2>
+              <p>One meaning can serve every language. Emoji first, generated image only when useful.</p>
+            </div>
+            <span class="badge">CONCEPT #00042</span>
+          </div>
+          <div class="concept-layout">
+            <div class="concept-visual">🐕</div>
+            <div>
+              <h2>DOG</h2>
+              <div class="concept-words">
+                <div><small>🇵🇹 Portuguese</small><strong>cão</strong></div>
+                <div><small>🇬🇧 English</small><strong>dog</strong></div>
+                <div><small>🇪🇸 Spanish</small><strong>perro</strong></div>
+                <div><small>🇮🇹 Italian</small><strong>cane</strong></div>
+                <div><small>🇫🇷 French</small><strong>chien</strong></div>
+                <div><small>🇩🇪 German</small><strong>Hund</strong></div>
+                <div><small>🇯🇵 Japanese</small><strong>犬 / いぬ</strong></div>
+                <div><small>🇦🇪 Arabic</small><strong>كلب</strong></div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section id="review" class="view">
+        <article class="card review-card">
+          <span class="badge">🇪🇸 SPEAKING RECALL</span>
+          <div class="review-visual">🧳</div>
+          <h2>Say this concept naturally in Spanish.</h2>
+          <p class="muted">Imagine the receptionist asks where your luggage is.</p>
+          <div class="review-actions">
+            <button id="reviewReveal" class="ghost">Reveal</button>
+            <button class="ghost">I knew it</button>
+            <button class="ghost">Hard</button>
+            <button class="ghost">Again soon</button>
+          </div>
+          <p id="reviewAnswer" class="answer" hidden>maleta</p>
+        </article>
+      </section>
+
+      <section id="memory" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>Memory sources</h2>
+            <p>Keep canonical repositories separate. Focuslyra reads selected content without creating stale copies.</p>
+          </div>
+        </div>
+        <div id="sourceGrid" class="source-grid"></div>
+      </section>
+
+      <section id="progress" class="view">
+        <article class="card">
+          <h2>Ability map</h2>
+          <p class="muted">These are prototype values until the English diagnostic and evidence engine are completed.</p>
+          <div class="progress-list">
+            <div><span>Spontaneous fluency</span><i style="--score:78%"></i><b>78</b></div>
+            <div><span>Grammar automaticity</span><i style="--score:61%"></i><b>61</b></div>
+            <div><span>Active vocabulary</span><i style="--score:70%"></i><b>70</b></div>
+            <div><span>Native-speed listening</span><i style="--score:64%"></i><b>64</b></div>
+            <div><span>RP sound perception</span><i style="--score:58%"></i><b>58</b></div>
+            <div><span>RP pronunciation / prosody</span><i style="--score:71%"></i><b>71</b></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="providers" class="view">
+        <div class="section-heading">
+          <div>
+            <h2>AI providers</h2>
+            <p>The learning system must remain usable even when every paid provider is disabled.</p>
+          </div>
+        </div>
+        <div id="providerGrid" class="provider-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
