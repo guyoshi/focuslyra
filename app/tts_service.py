@@ -20,16 +20,17 @@ class TTSServiceError(RuntimeError):
 
 _KOKORO: Any = None
 
-# British candidates for the first English calibration. They are deliberately
-# not labelled as definitive RP until the learner auditions them.
 BRITISH_CALIBRATION_VOICES = ["bf_emma", "bf_isabella", "bm_george", "bm_lewis"]
 
+# Preferred starting points only. The settings screen can replace every one.
 DEFAULT_VOICES = {
     "en-GB": "bm_george",
+    "es-ES": "ef_dora",
+    "fr-FR": "ff_siwis",
+    "it-IT": "if_sara",
+    "ja-JP": "jf_alpha",
 }
 
-# Kokoro's language argument and voice prefixes. Unsupported languages stay
-# fully usable through the browser/system voice fallback.
 LANG_MAP = {
     "en-GB": "en-gb",
     "es-ES": "es",
@@ -82,17 +83,29 @@ def available_kokoro_voices() -> list[str]:
         return []
 
 
+def voices_for_language(language_code: str) -> list[str]:
+    prefixes = VOICE_PREFIXES.get(language_code, ())
+    if not prefixes:
+        return []
+    return [voice for voice in available_kokoro_voices() if voice.startswith(prefixes)]
+
+
+def _automatic_voice(language_code: str) -> str | None:
+    candidates = voices_for_language(language_code)
+    preferred = DEFAULT_VOICES.get(language_code)
+    if preferred and (not candidates or preferred in candidates):
+        return preferred
+    return candidates[0] if candidates else preferred
+
+
 def voice_catalog() -> dict[str, Any]:
-    all_voices = available_kokoro_voices()
     languages: dict[str, Any] = {}
-    for language_code, prefixes in VOICE_PREFIXES.items():
+    for language_code in VOICE_PREFIXES:
         languages[language_code] = {
             "kokoro_supported": language_code in LANG_MAP,
-            "kokoro_voices": [voice for voice in all_voices if voice.startswith(prefixes)],
+            "kokoro_voices": voices_for_language(language_code),
             "browser_supported": True,
         }
-    # Languages currently studied but not supported by Kokoro still appear so
-    # the UI can offer browser/system voices now and future providers later.
     for language_code in ("ar", "de-DE"):
         languages.setdefault(
             language_code,
@@ -152,7 +165,10 @@ def synthesise(
     if profile.get("engine") == "browser":
         raise TTSServiceError("This language is configured to use the browser/system voice.")
 
-    selected_voice = (voice or profile.get("selected_voice") or DEFAULT_VOICES.get(language_code) or "bm_george").strip()
+    selected_voice = str(voice or profile.get("selected_voice") or _automatic_voice(language_code) or "").strip()
+    if not selected_voice:
+        raise TTSServiceError(f"No compatible local voice is installed for {language_code}.")
+
     lang = LANG_MAP.get(language_code)
     if not lang:
         raise TTSServiceError(
@@ -163,9 +179,11 @@ def synthesise(
         speed = float(profile.get("speed") or 1.0)
     speed = max(0.65, min(1.35, float(speed)))
 
-    known = available_kokoro_voices()
-    if known and selected_voice not in known:
-        raise TTSServiceError(f"The selected Kokoro voice '{selected_voice}' is not installed in this voice pack.")
+    known_for_language = voices_for_language(language_code)
+    if known_for_language and selected_voice not in known_for_language:
+        raise TTSServiceError(
+            f"The selected voice '{selected_voice}' is not a compatible Kokoro voice for {language_code}."
+        )
 
     cache_id = _cache_id(clean, language_code, selected_voice, speed)
     out_dir = GENERATED_DIR / language_code
