@@ -23,10 +23,25 @@ if not exist ".venv\Scripts\python.exe" (
   goto :failed
 )
 
-rem New features may add Python packages after the first installation.
-".venv\Scripts\python.exe" -c "import fastapi, uvicorn, googleapiclient, google_auth_oauthlib" >nul 2>nul
+rem Compare the current requirements file with the one last installed into this venv.
+set "REQ_HASH="
+set "INSTALLED_HASH="
+for /f "usebackq delims=" %%H in (`powershell -NoProfile -Command "(Get-FileHash 'requirements.txt' -Algorithm SHA256).Hash"`) do set "REQ_HASH=%%H"
+if exist ".venv\.focuslyra_requirements_hash" set /p INSTALLED_HASH=<".venv\.focuslyra_requirements_hash"
+
+if not defined REQ_HASH (
+  echo [WARN] Could not calculate dependency hash. Verifying imports directly...
+) else if /I not "%REQ_HASH%"=="%INSTALLED_HASH%" (
+  echo [Focuslyra] Project dependencies changed since the last run.
+  echo [Focuslyra] Updating local environment automatically...
+  call setup.bat
+  if errorlevel 1 goto :setup_failed
+)
+
+rem Final safety check. This also repairs old venvs created before dependency tracking existed.
+".venv\Scripts\python.exe" -c "import fastapi, uvicorn, requests, google.auth, googleapiclient, google_auth_oauthlib" >nul 2>nul
 if errorlevel 1 (
-  echo [Focuslyra] New dependencies detected. Updating local environment...
+  echo [Focuslyra] A required package is missing. Repairing the local environment...
   call setup.bat
   if errorlevel 1 goto :setup_failed
 )
@@ -36,7 +51,6 @@ echo [Focuslyra] URL: http://127.0.0.1:8765
 echo [Focuslyra] Log: %LOG_FILE%
 echo.
 
-rem Open the browser a moment after Uvicorn starts.
 start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://127.0.0.1:8765'" >nul 2>nul
 
 ".venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload 2>&1
