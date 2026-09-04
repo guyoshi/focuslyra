@@ -1,0 +1,43 @@
+{
+  "recording_id": "6be46d72346143ea9dc387edc2d5b0dc",
+  "language_code": "en-GB",
+  "reference_text": "I thought the weather would be warmer by the time we arrived.",
+  "heard_text": "I thought this weather would be warmer by the time we arrived.",
+  "target_feature": "timing and prosody",
+  "engine": "focuslyra-pronunciation-v1/local",
+  "scores": {
+    "controlled_intelligibility": 92,
+    "timing_similarity": 57,
+    "rhythm_similarity": 78,
+    "prosody_shape_similarity": 68,
+    "practice_similarity": 80
+  },
+  "feedback": [
+    "The controlled sentence was recognised very clearly.",
+    "Your overall timing differs noticeably from the reference. Listen once more and imitate phrase length and pauses.",
+    "Target feature: timing and prosody. This V1 does not yet assign a phoneme-specific score to that feature."
+  ],
+  "learner_acoustics": {
+    "duration_seconds": 5.219,
+    "voiced_frame_ratio": 0.5203,
+    "quiet_frame_ratio": 0.1298,
+    "pitch_mean_hz": 119.82,
+    "pitch_min_hz": 62.25,
+    "pitch_max_hz": 194.33,
+    "pitch_range_semitones": 5.8,
+    "intensity_mean_db": 43.05
+  },
+  "reference_acoustics": {
+    "duration_seconds": 3.563,
+    "voiced_frame_ratio": 0.75,
+    "quiet_frame_ratio": 0.14,
+    "pitch_mean_hz": 139.86,
+    "pitch_min_hz": 74.01,
+    "pitch_max_hz": 212.54,
+    "pitch_range_semitones": 9.33,
+    "intensity_mean_db": 64.69
+  },
+  "phoneme_accuracy": null,
+  "warning": "Practice similarity is not a native-accent percentage. Exact sound-by-sound scoring remains disabled until forced alignment and target-language calibration are implemented.",
+  "session_id": 1
+}

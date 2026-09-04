@@ -1,0 +1,11 @@
+{
+  "id": "f532b585e861356f081957b7",
+  "text": "I was going to call you after work, but I ended up getting home later than I expected.",
+  "language_code": "en-GB",
+  "voice": "bm_george",
+  "purpose": "listening",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/tainara/generated/en-GB/f532b585e861356f081957b7.wav",
+  "cached": true
+}

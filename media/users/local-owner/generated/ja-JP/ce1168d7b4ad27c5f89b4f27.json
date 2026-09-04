@@ -1,0 +1,11 @@
+{
+  "id": "ce1168d7b4ad27c5f89b4f27",
+  "text": "今日は朝ご飯を食べてから、町へ行きました。",
+  "language_code": "ja-JP",
+  "voice": "jf_alpha",
+  "purpose": "listening",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/ja-JP/ce1168d7b4ad27c5f89b4f27.wav",
+  "cached": true
+}

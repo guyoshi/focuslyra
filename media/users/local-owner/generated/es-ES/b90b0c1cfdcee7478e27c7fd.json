@@ -1,0 +1,11 @@
+{
+  "id": "b90b0c1cfdcee7478e27c7fd",
+  "text": "Hola. Me llamo Ana.",
+  "language_code": "es-ES",
+  "voice": "ef_dora",
+  "purpose": "listening",
+  "speed": 1.0,
+  "engine": "kokoro-onnx/local",
+  "relative_audio_path": "media/users/local-owner/generated/es-ES/b90b0c1cfdcee7478e27c7fd.wav",
+  "cached": true
+}
