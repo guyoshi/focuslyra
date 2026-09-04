@@ -1,13 +1,13 @@
 (() => {
   'use strict';
 
-  // The local model may need several seconds to generate the next activity.
-  // Prepare only the next slot in the background so Continue normally feels
-  // instant, while keeping a clear loading/error state when generation is not
-  // ready yet.
+  // The local model may need several seconds to generate an activity. Keep the
+  // learner informed immediately, split fast planning from slower generation,
+  // and prefetch only one upcoming slot once the current activity is visible.
   const prefetched = new Map();
   let planRef = null;
   let transitioning = false;
+  let startingSession = false;
 
   function activities() {
     if (typeof studyRuntime === 'undefined') return [];
@@ -54,7 +54,7 @@
   }
 
   function prefetchNext() {
-    if (typeof studyRuntime === 'undefined' || !studyRuntime.plan) return;
+    if (startingSession || typeof studyRuntime === 'undefined' || !studyRuntime.plan || !studyRuntime.activity) return;
     syncPlan();
     const plan = activities();
     const nextIndex = Number(studyRuntime.index || 0) + 1;
@@ -84,17 +84,104 @@
     panel.querySelector('.finish-to-dashboard')?.addEventListener('click', () => setView('dashboard'));
   }
 
+  function renderStartLoading(mode) {
+    if (typeof setView === 'function') setView('study');
+    if (typeof setMode === 'function') setMode('speak');
+    const panel = document.getElementById('mode-speak');
+    if (!panel) return { status: null, elapsed: null };
+    panel.innerHTML = `
+      <span class="badge">ADAPTIVE STUDY</span>
+      <h2>Building your session…</h2>
+      <p class="prompt">First Focuslyra chooses today's plan from your priorities and evidence. Then Qwen prepares the first activity locally.</p>
+      <div class="feedback good">
+        <strong class="session-start-step">Preparing the plan…</strong>
+        <p class="muted small session-start-elapsed">0s elapsed</p>
+      </div>`;
+    const subtitle = document.getElementById('pageSubtitle');
+    if (subtitle) subtitle.textContent = mode === 'minimum'
+      ? 'Preparing a short adaptive session…'
+      : 'Preparing today’s adaptive session…';
+    return {
+      status: panel.querySelector('.session-start-step'),
+      elapsed: panel.querySelector('.session-start-elapsed'),
+    };
+  }
+
+  function renderStartError(error, mode) {
+    const panel = document.getElementById('mode-speak');
+    if (!panel) return;
+    panel.innerHTML = `
+      <span class="badge">SESSION ERROR</span>
+      <h2>Focuslyra could not start the session.</h2>
+      <p class="prompt">${typeof escapeHtml === 'function' ? escapeHtml(error?.message || String(error)) : String(error?.message || error)}</p>
+      <button type="button" class="primary retry-adaptive-start">Try again</button>`;
+    panel.querySelector('.retry-adaptive-start')?.addEventListener('click', () => robustStartAdaptiveSession(mode));
+  }
+
+  async function robustStartAdaptiveSession(mode = 'normal') {
+    if (startingSession) return;
+    if (typeof studyRuntime === 'undefined') {
+      renderStartError(new Error('The adaptive study engine has not finished loading yet.'), mode);
+      return;
+    }
+
+    startingSession = true;
+    transitioning = false;
+    prefetched.clear();
+    studyRuntime.plan = null;
+    studyRuntime.activity = null;
+    studyRuntime.index = 0;
+
+    const loading = renderStartLoading(mode);
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (!loading.elapsed) return;
+      const seconds = Math.floor((Date.now() - startedAt) / 1000);
+      loading.elapsed.textContent = seconds < 15
+        ? `${seconds}s elapsed`
+        : `${seconds}s elapsed · the local model is still working; the app has not frozen.`;
+    }, 1000);
+
+    try {
+      // Planning is deterministic and quick. Do it separately so the interface
+      // responds instantly instead of waiting for Qwen before showing anything.
+      const plan = await api(`/api/study/plan?mode=${encodeURIComponent(mode === 'minimum' ? 'minimum' : 'normal')}`);
+      if (!Array.isArray(plan?.activities) || !plan.activities.length) {
+        throw new Error(plan?.reason || 'No study activity is available for the selected learner.');
+      }
+
+      studyRuntime.plan = plan;
+      studyRuntime.index = 0;
+      if (typeof state !== 'undefined') state.sessionDurationMinutes = plan.total_minutes;
+      if (typeof updatePlanSidebar === 'function') updatePlanSidebar();
+      if (loading.status) loading.status.textContent = `Plan ready · preparing activity 1/${plan.activities.length} locally…`;
+
+      const first = await requestActivity(plan.activities[0]);
+      if (typeof state !== 'undefined') state.currentLanguageCode = first.language_code;
+      renderActivity(first);
+    } catch (error) {
+      console.error('Could not start the Focuslyra adaptive session:', error);
+      renderStartError(error, mode);
+    } finally {
+      window.clearInterval(timer);
+      startingSession = false;
+      setTimeout(prefetchNext, 0);
+    }
+  }
+
+  // users.js owns the Study placeholder and calls this global function. Replace
+  // the older implementation at runtime so both the sidebar Study button and
+  // the placeholder Start button use the responsive two-step start flow.
+  window.startAdaptiveSession = robustStartAdaptiveSession;
+
   async function handleContinue(event) {
     const button = event.target.closest?.('.continue-plan');
     if (!button) return;
 
-    // Replace the original unguarded handler from learning.js. Without this,
-    // a slow local generation request looks like a dead button and a failed
-    // request becomes an unhandled rejection with no learner-facing message.
     event.preventDefault();
     event.stopImmediatePropagation();
 
-    if (transitioning || typeof studyRuntime === 'undefined' || !studyRuntime.plan) return;
+    if (transitioning || startingSession || typeof studyRuntime === 'undefined' || !studyRuntime.plan) return;
     syncPlan();
 
     const plan = activities();
@@ -123,8 +210,6 @@
       const prepared = await prepare(nextIndex, slot);
       if (prepared.error) throw prepared.error;
 
-      // Commit the plan position only after the next activity exists. This
-      // prevents a failed request from silently skipping an activity.
       studyRuntime.index = nextIndex;
       prefetched.delete(key);
       renderActivity(prepared.activity);
@@ -142,8 +227,7 @@
 
   document.addEventListener('click', handleContinue, true);
 
-  // Activity rendering and feedback both mutate the study card. That gives us
-  // a cheap signal to warm exactly one upcoming activity in the background.
+  // Warm exactly one upcoming activity after the current one has rendered.
   const host = document.querySelector('#study .study-main');
   if (host) {
     const observer = new MutationObserver(() => setTimeout(prefetchNext, 0));
