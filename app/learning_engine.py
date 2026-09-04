@@ -20,20 +20,46 @@ def _language_profile(language_code: str) -> dict[str, Any]:
     return {"code": language_code, "name": language_code, "target_variety": language_code, "goals": []}
 
 
+def _compact_evidence(language_code: str) -> list[dict[str, Any]]:
+    """Keep only the evidence needed for one live assessment.
+
+    The full evidence history remains in SQLite. Sending a large history back to
+    a small local model on every click wastes prompt-processing time and does not
+    improve the immediate correction enough to justify the latency.
+    """
+    evidence = recent_learning_evidence(language_code, limit=8)
+    compact: list[dict[str, Any]] = []
+    for item in evidence:
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        compact.append(
+            {
+                "item": str(item.get("item_id") or "")[:180],
+                "modality": item.get("modality"),
+                "event": item.get("event_type"),
+                "score": item.get("score"),
+                "reason": str(payload.get("reason") or "")[:220],
+            }
+        )
+    return compact
+
+
 def _learner_context(language_code: str) -> dict[str, Any]:
     profile = load_profile()
     language = _language_profile(language_code)
-    evidence = recent_learning_evidence(language_code, limit=16)
     return {
         "learner": {
-            "name": profile.get("learner_name", "learner"),
             "native_language": profile.get("native_language", "pt-BR"),
             "learning_focus": profile.get("learning_focus", ["speaking", "listening"]),
             "accent_importance": profile.get("accent_importance", "high"),
-            "attention_strategy": profile.get("attention_strategy"),
         },
-        "language": language,
-        "recent_evidence": evidence,
+        "language": {
+            "code": language.get("code", language_code),
+            "name": language.get("name", language_code),
+            "target_variety": language.get("target_variety", language_code),
+            "current_state": language.get("current_state", "not assessed"),
+            "goals": (language.get("goals") or [])[:6],
+        },
+        "recent_evidence": _compact_evidence(language_code),
     }
 
 
@@ -89,46 +115,40 @@ def analyse_submission(
     native_language = context["learner"].get("native_language") or "pt-BR"
 
     system_prompt = f"""
-You are the local assessment engine inside Focuslyra, a speaking/listening-first language-learning system.
-You are analysing {target_name} ({target_variety}) for one learner.
-The learner's native language is {native_language}.
-Current modality: {modality}.
+You are the fast local assessment engine inside Focuslyra.
+Analyse {target_name} ({target_variety}) for a learner whose native language is {native_language}.
+Modality: {modality}.
 
-Principles:
-- Judge communication and automatic usable language, not school-test perfection.
-- Correct only mistakes useful enough to change future learning.
+Rules:
+- Judge usable communication, not school-test perfection.
+- Correct only mistakes worth revisiting.
 - Do not punish harmless stylistic variation.
-- Separate comprehension from production when the modality provides that evidence.
-- For listening-response, prioritise whether the learner understood/responded to the source; do not treat every grammar issue as a listening failure.
-- For reading-response, prioritise comprehension of the supplied text while still noticing reusable production issues.
-- Prefer natural chunks/collocations and reusable sentence patterns over isolated grammar lectures.
-- If a regional variety is specified, prefer that variety.
-- Never invent pronunciation conclusions from text or a transcript. Acoustic pronunciation is analysed separately.
-- The next activity suggestion should test retrieval without simply giving away the answer.
-- Keep feedback concise enough to use during a live study session.
-- Feedback/explanations may be in clear English, but any audio_text must be natural {target_name} in the requested regional variety.
+- Listening/reading responses: prioritise comprehension first.
+- Prefer natural chunks and reusable sentence patterns.
+- Never infer pronunciation from text/transcripts; acoustics are separate.
+- Keep the response VERY concise for a live study session.
+- Maximum 3 strengths, 3 corrections and 3 revisit patterns.
+- The next task must test retrieval without giving away the answer.
 
-Return ONLY one JSON object:
+Return ONLY JSON:
 {{
-  "summary": "short learner-facing summary",
-  "strengths": ["..."],
-  "corrections": [{{"original":"...","natural":"...","reason":"...","category":"grammar|vocabulary|naturalness|word_order|register"}}],
-  "scores": {{"communication":0,"grammar_automaticity":0,"active_vocabulary":0,"naturalness":0}},
-  "patterns_to_revisit": [{{"item":"short reusable target","reason":"why it needs another encounter"}}],
-  "next_activity": {{"type":"speak|write|listen|read|review","prompt":"one concrete next task","target":"hidden/retrieval target","audio_text":""}}
+  "summary":"1-2 short sentences",
+  "strengths":["..."],
+  "corrections":[{{"original":"...","natural":"...","reason":"brief reason","category":"grammar|vocabulary|naturalness|word_order|register"}}],
+  "scores":{{"communication":0,"grammar_automaticity":0,"active_vocabulary":0,"naturalness":0}},
+  "patterns_to_revisit":[{{"item":"short reusable target","reason":"brief reason"}}],
+  "next_activity":{{"type":"speak|write|listen|read|review","prompt":"one short task","target":"hidden retrieval target","audio_text":""}}
 }}
-Scores are integers 0-100 and are session evidence, not CEFR claims.
+Scores are 0-100 session evidence, not CEFR.
 """.strip()
 
     user_payload = {
-        "exercise_context": exercise_prompt,
-        "modality": modality,
-        "transcript_source": transcript_source,
-        "learner_response": text,
-        "learner_context": context,
+        "exercise": (exercise_prompt or "")[:1800],
+        "response": text[:4000],
+        "context": context,
     }
     try:
-        analysis = ollama_json(system_prompt, json.dumps(user_payload, ensure_ascii=False))
+        analysis = ollama_json(system_prompt, json.dumps(user_payload, ensure_ascii=False), timeout=60.0)
     except AIProviderError as exc:
         raise LearningEngineError(str(exc)) from exc
 
