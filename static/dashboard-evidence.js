@@ -65,4 +65,14 @@
     script.dataset.focuslyraLanguageSettings = '1';
     document.body.appendChild(script);
   }
+
+  // learning.js is already loaded before this dashboard layer. Keep navigation
+  // responsiveness isolated so the adaptive engine can prefetch one upcoming
+  // activity and show real loading/errors instead of looking frozen.
+  if (!document.querySelector('script[data-focuslyra-learning-navigation]')) {
+    const script = document.createElement('script');
+    script.src = '/static/learning-navigation.js';
+    script.dataset.focuslyraLearningNavigation = '1';
+    document.body.appendChild(script);
+  }
 })();
