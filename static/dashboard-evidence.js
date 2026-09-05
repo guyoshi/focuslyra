@@ -75,4 +75,14 @@
     script.dataset.focuslyraLearningNavigation = '1';
     document.body.appendChild(script);
   }
+
+  // Japanese assistance is intentionally on demand. Native script remains the
+  // default, while every Japanese study text can expose Hepburn romaji without
+  // leaking a hidden listening transcript before the learner reveals it.
+  if (!document.querySelector('script[data-focuslyra-japanese-support]')) {
+    const script = document.createElement('script');
+    script.src = '/static/japanese-support.js';
+    script.dataset.focuslyraJapaneseSupport = '1';
+    document.body.appendChild(script);
+  }
 })();
