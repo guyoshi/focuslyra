@@ -48,12 +48,18 @@ if not defined REQ_HASH (
 )
 
 rem Final safety check. This also repairs old venvs created before dependency tracking existed.
-".venv\Scripts\python.exe" -c "import fastapi, uvicorn, requests, google.auth, googleapiclient, google_auth_oauthlib" >nul 2>nul
+".venv\Scripts\python.exe" -c "import fastapi, uvicorn, requests, google.auth, googleapiclient, google_auth_oauthlib, pykakasi" >nul 2>nul
 if errorlevel 1 (
   echo [Focuslyra] A required package is missing. Repairing the local environment...
   call setup.bat
   if errorlevel 1 goto :setup_failed
 )
+
+rem If local Kokoro was already configured, keep its optional dependencies in
+rem sync too. This lets pronunciation fixes arrive with git pull + restart
+rem instead of asking the learner to discover another setup script manually.
+if exist "models\tts\kokoro\kokoro-v1.0.onnx" call :sync_tts_dependencies
+if errorlevel 1 goto :setup_failed
 
 echo [Focuslyra] Starting local server...
 echo [Focuslyra] URL: http://%FOCUSLYRA_HOST%:%FOCUSLYRA_PORT%
@@ -73,6 +79,22 @@ if not "%EXIT_CODE%"=="0" (
 )
 
 goto :eof
+
+:sync_tts_dependencies
+if not exist "requirements-tts.txt" exit /b 0
+set "TTS_REQ_HASH="
+set "TTS_INSTALLED_HASH="
+for /f "usebackq delims=" %%H in (`powershell -NoProfile -Command "(Get-FileHash 'requirements-tts.txt' -Algorithm SHA256).Hash"`) do set "TTS_REQ_HASH=%%H"
+if exist ".venv\focuslyra\requirements-tts.sha256" set /p TTS_INSTALLED_HASH=<".venv\focuslyra\requirements-tts.sha256"
+if not defined TTS_REQ_HASH exit /b 0
+if /I "%TTS_REQ_HASH%"=="%TTS_INSTALLED_HASH%" exit /b 0
+echo [Focuslyra] Local voice dependencies changed. Updating them automatically...
+".venv\Scripts\python.exe" -m pip install -r requirements-tts.txt
+if errorlevel 1 exit /b 1
+if not exist ".venv\focuslyra" mkdir ".venv\focuslyra"
+> ".venv\focuslyra\requirements-tts.sha256" echo %TTS_REQ_HASH%
+echo [Focuslyra] Local voice dependencies are up to date.
+exit /b 0
 
 :setup_failed
 echo.
