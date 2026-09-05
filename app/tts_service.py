@@ -24,6 +24,7 @@ class TTSServiceError(RuntimeError):
 
 
 _KOKORO: Any = None
+_JAPANESE_G2P: Any = None
 
 BRITISH_CALIBRATION_VOICES = ["bf_emma", "bf_isabella", "bm_george", "bm_lewis"]
 
@@ -68,6 +69,38 @@ def _load_engine():
     except Exception as exc:
         raise TTSServiceError(f"Could not load local Kokoro TTS: {exc}") from exc
     return _KOKORO
+
+
+def _load_japanese_g2p():
+    """Use Misaki's Japanese G2P explicitly instead of letting a generic
+    tokenizer guess how kanji/kana should be read.
+
+    Kokoro's Japanese voices expect Japanese phonemes. Passing raw Japanese
+    directly through a generic multilingual path can produce bizarre spoken
+    labels or wrong kanji readings, so Japanese is phonemised before synthesis.
+    """
+    global _JAPANESE_G2P
+    if _JAPANESE_G2P is not None:
+        return _JAPANESE_G2P
+    try:
+        from misaki import ja
+    except ImportError as exc:
+        raise TTSServiceError(
+            "Japanese Kokoro phonemisation is missing. Run configure_local_tts.bat again after updating Focuslyra."
+        ) from exc
+    try:
+        _JAPANESE_G2P = ja.JAG2P()
+    except Exception as exc:
+        raise TTSServiceError(f"Could not initialise Japanese pronunciation support: {exc}") from exc
+    return _JAPANESE_G2P
+
+
+def _japanese_g2p_ready() -> bool:
+    try:
+        _load_japanese_g2p()
+        return True
+    except TTSServiceError:
+        return False
 
 
 def _kokoro_ready() -> bool:
@@ -134,6 +167,7 @@ def tts_status() -> dict[str, Any]:
         "cost": "free/local",
         "model_ready": MODEL_PATH.exists(),
         "voices_ready": VOICES_PATH.exists(),
+        "japanese_g2p_ready": _japanese_g2p_ready() if ready else False,
         "supported_languages": sorted(LANG_MAP.keys()),
         "british_calibration_voices": BRITISH_CALIBRATION_VOICES,
         "note": (
@@ -145,8 +179,12 @@ def tts_status() -> dict[str, Any]:
 
 
 def _cache_id(text: str, language_code: str, voice: str, speed: float) -> str:
+    # Japanese cache version is deliberately distinct because Japanese now uses
+    # explicit Misaki G2P. This prevents old incorrectly-pronounced WAV files
+    # from surviving after the pronunciation fix.
+    engine_variant = "kokoro-v1.0-ja-misaki-v1" if language_code == "ja-JP" else "kokoro-v1.0"
     payload = json.dumps(
-        {"text": text, "language_code": language_code, "voice": voice, "speed": round(speed, 3), "engine": "kokoro-v1.0"},
+        {"text": text, "language_code": language_code, "voice": voice, "speed": round(speed, 3), "engine": engine_variant},
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -199,9 +237,22 @@ def synthesise(
     if not wav_path.exists():
         engine = _load_engine()
         try:
-            samples, sample_rate = engine.create(clean, voice=selected_voice, speed=speed, lang=lang)
+            if language_code == "ja-JP":
+                phonemes, _ = _load_japanese_g2p()(clean)
+                if not str(phonemes or "").strip():
+                    raise TTSServiceError("Japanese phonemisation returned no readable sounds.")
+                samples, sample_rate = engine.create(
+                    phonemes,
+                    voice=selected_voice,
+                    speed=speed,
+                    is_phonemes=True,
+                )
+            else:
+                samples, sample_rate = engine.create(clean, voice=selected_voice, speed=speed, lang=lang)
             import soundfile as sf
             sf.write(str(wav_path), samples, sample_rate)
+        except TTSServiceError:
+            raise
         except Exception as exc:
             raise TTSServiceError(f"Local speech generation failed: {exc}") from exc
 
