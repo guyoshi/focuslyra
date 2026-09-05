@@ -15,7 +15,7 @@ if not exist ".venv\Scripts\python.exe" (
   if errorlevel 1 goto :failed
 )
 
-echo [Focuslyra] Installing lightweight Kokoro ONNX TTS...
+echo [Focuslyra] Installing lightweight Kokoro ONNX TTS + Japanese G2P...
 ".venv\Scripts\python.exe" -m pip install -r requirements-tts.txt
 if errorlevel 1 goto :failed
 
@@ -40,7 +40,11 @@ if not exist "%VOICES%" (
 )
 
 echo [Focuslyra] Verifying local British voice generation...
-".venv\Scripts\python.exe" -c "from app.tts_service import synthesise; r=synthesise('Focuslyra local voice is ready.', 'en-GB', 'bm_george'); print('[Focuslyra] Test WAV:', r['relative_audio_path'])"
+".venv\Scripts\python.exe" -c "from app.tts_service import synthesise; r=synthesise('Focuslyra local voice is ready.', 'en-GB', 'bm_george'); print('[Focuslyra] English test WAV:', r['relative_audio_path'])"
+if errorlevel 1 goto :failed
+
+echo [Focuslyra] Verifying Japanese kanji/kana phonemisation...
+".venv\Scripts\python.exe" -c "from app.tts_service import synthesise; r=synthesise('今日は日本語を勉強します。', 'ja-JP', 'jf_alpha'); print('[Focuslyra] Japanese test WAV:', r['relative_audio_path'])"
 if errorlevel 1 goto :failed
 
 for /f "tokens=*" %%H in ('certutil -hashfile requirements-tts.txt SHA256 ^| findstr /v /i "hash certutil"') do set "REQ_HASH=%%H"
@@ -51,6 +55,7 @@ echo.
 echo ==================================================
 echo [Focuslyra] Local Kokoro TTS is ready.
 echo Generated audio is cached under media\generated\
+echo Japanese uses explicit Misaki G2P before Kokoro synthesis.
 echo British voices are candidates only until RP calibration.
 echo Cost per generated clip: 0 EUR
 echo ==================================================
