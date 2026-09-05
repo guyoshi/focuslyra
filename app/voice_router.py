@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from .japanese_service import JapaneseServiceError, romanise_japanese
 from .phase2_router import router as phase2_router
 from .tts_service import voice_catalog
 from .user_router import router as user_router
@@ -19,6 +20,10 @@ router.include_router(user_router)
 
 class VoicePreferencesPayload(BaseModel):
     languages: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class JapaneseRomajiPayload(BaseModel):
+    texts: list[str] = Field(default_factory=list)
 
 
 @router.get("/voice/catalog")
@@ -36,4 +41,13 @@ def put_voice_preferences(payload: VoicePreferencesPayload) -> dict[str, Any]:
     try:
         return save_voice_preferences(payload.model_dump())
     except VoicePreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/japanese/romaji")
+def japanese_romaji(payload: JapaneseRomajiPayload) -> dict[str, Any]:
+    texts = [str(text)[:3000] for text in payload.texts[:12]]
+    try:
+        return {"ok": True, "romaji": [romanise_japanese(text) for text in texts]}
+    except JapaneseServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
