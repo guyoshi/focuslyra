@@ -72,12 +72,11 @@ def _load_engine():
 
 
 def _load_japanese_g2p():
-    """Use Misaki's Japanese G2P explicitly instead of letting a generic
-    tokenizer guess how kanji/kana should be read.
+    """Legacy Kokoro-Japanese path kept only for an explicit Kokoro choice.
 
-    Kokoro's Japanese voices expect Japanese phonemes. Passing raw Japanese
-    directly through a generic multilingual path can produce bizarre spoken
-    labels or wrong kanji readings, so Japanese is phonemised before synthesis.
+    The automatic Japanese path uses OpenJTalk's own Japanese speech engine.
+    kokoro-onnx has known Japanese pronunciation regressions, so it is no
+    longer the default for learner-facing Japanese audio.
     """
     global _JAPANESE_G2P
     if _JAPANESE_G2P is not None:
@@ -89,7 +88,8 @@ def _load_japanese_g2p():
             "Japanese Kokoro phonemisation is missing. Run configure_local_tts.bat again after updating Focuslyra."
         ) from exc
     try:
-        _JAPANESE_G2P = ja.JAG2P()
+        # Second-generation Japanese tokenizer: pyopenjtalk + full UniDic.
+        _JAPANESE_G2P = ja.JAG2P(version="pyopenjtalk")
     except Exception as exc:
         raise TTSServiceError(f"Could not initialise Japanese pronunciation support: {exc}") from exc
     return _JAPANESE_G2P
@@ -100,6 +100,14 @@ def _japanese_g2p_ready() -> bool:
         _load_japanese_g2p()
         return True
     except TTSServiceError:
+        return False
+
+
+def _japanese_openjtalk_ready() -> bool:
+    try:
+        import pyopenjtalk  # noqa: F401
+        return True
+    except ImportError:
         return False
 
 
@@ -143,11 +151,12 @@ def voice_catalog() -> dict[str, Any]:
             "kokoro_supported": language_code in LANG_MAP,
             "kokoro_voices": voices_for_language(language_code),
             "browser_supported": True,
+            "automatic_engine": "openjtalk" if language_code == "ja-JP" else "kokoro",
         }
     for language_code in ("ar", "de-DE"):
         languages.setdefault(
             language_code,
-            {"kokoro_supported": False, "kokoro_voices": [], "browser_supported": True},
+            {"kokoro_supported": False, "kokoro_voices": [], "browser_supported": True, "automatic_engine": "browser"},
         )
     return {
         "engines": [
@@ -160,35 +169,75 @@ def voice_catalog() -> dict[str, Any]:
 
 
 def tts_status() -> dict[str, Any]:
-    ready = _kokoro_ready()
+    kokoro_ready = _kokoro_ready()
+    japanese_ready = _japanese_openjtalk_ready()
+    supported = [code for code in LANG_MAP if kokoro_ready or (code == "ja-JP" and japanese_ready)]
     return {
-        "configured": ready,
-        "engine": "kokoro-onnx/local",
+        "configured": kokoro_ready or japanese_ready,
+        "engine": "local-multiengine",
         "cost": "free/local",
         "model_ready": MODEL_PATH.exists(),
         "voices_ready": VOICES_PATH.exists(),
-        "japanese_g2p_ready": _japanese_g2p_ready() if ready else False,
-        "supported_languages": sorted(LANG_MAP.keys()),
+        "japanese_g2p_ready": _japanese_g2p_ready() if kokoro_ready else False,
+        "japanese_openjtalk_ready": japanese_ready,
+        "japanese_default_engine": "pyopenjtalk/local" if japanese_ready else "browser/system",
+        "supported_languages": sorted(supported),
         "british_calibration_voices": BRITISH_CALIBRATION_VOICES,
         "note": (
-            "Kokoro local TTS is ready."
-            if ready
+            "Local TTS is ready. Japanese uses native OpenJTalk by default for reliable kanji/kana reading."
+            if (kokoro_ready or japanese_ready)
             else "Run configure_local_tts.bat once to enable persistent local WAV generation."
         ),
     }
 
 
-def _cache_id(text: str, language_code: str, voice: str, speed: float) -> str:
-    # Japanese cache version is deliberately distinct because Japanese now uses
-    # explicit Misaki G2P. This prevents old incorrectly-pronounced WAV files
-    # from surviving after the pronunciation fix.
-    engine_variant = "kokoro-v1.0-ja-misaki-v1" if language_code == "ja-JP" else "kokoro-v1.0"
+def _cache_id(text: str, language_code: str, voice: str, speed: float, engine_variant: str | None = None) -> str:
+    if engine_variant is None:
+        engine_variant = "kokoro-v1.0"
     payload = json.dumps(
         {"text": text, "language_code": language_code, "voice": voice, "speed": round(speed, 3), "engine": engine_variant},
         ensure_ascii=False,
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
+
+
+def _synthesise_japanese_openjtalk(clean: str, speed: float, purpose: str) -> dict[str, Any]:
+    try:
+        import pyopenjtalk
+        import soundfile as sf
+    except ImportError as exc:
+        raise TTSServiceError(
+            "Native Japanese speech support is missing. Run configure_local_tts.bat again after updating Focuslyra."
+        ) from exc
+
+    selected_voice = "open_jtalk_hts"
+    cache_id = _cache_id(clean, "ja-JP", selected_voice, speed, "pyopenjtalk-hts-v1")
+    out_dir = user_media_dir() / "generated" / "ja-JP"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    wav_path = out_dir / f"{cache_id}.wav"
+    metadata_path = out_dir / f"{cache_id}.json"
+
+    if not wav_path.exists():
+        try:
+            samples, sample_rate = pyopenjtalk.tts(clean, speed=speed)
+            sf.write(str(wav_path), samples, sample_rate)
+        except Exception as exc:
+            raise TTSServiceError(f"Native Japanese speech generation failed: {exc}") from exc
+
+    metadata = {
+        "id": cache_id,
+        "text": clean,
+        "language_code": "ja-JP",
+        "voice": selected_voice,
+        "purpose": purpose,
+        "speed": speed,
+        "engine": "pyopenjtalk/local",
+        "relative_audio_path": to_storable_path(wav_path),
+        "cached": True,
+    }
+    metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    return metadata
 
 
 def synthesise(
@@ -205,8 +254,19 @@ def synthesise(
         raise TTSServiceError("This local TTS endpoint currently accepts up to 1500 characters at a time.")
 
     profile = resolve_voice_profile(language_code, purpose)
-    if profile.get("engine") == "browser":
+    engine_choice = str(profile.get("engine") or "auto").strip().lower()
+    if engine_choice == "browser":
         raise TTSServiceError("This language is configured to use the browser/system voice.")
+
+    if speed is None:
+        speed = float(profile.get("speed") or 1.0)
+    speed = max(0.65, min(1.35, float(speed)))
+
+    # Japanese automatic mode deliberately avoids kokoro-onnx. Its Japanese
+    # path has known pronunciation regressions around kanji/kana. OpenJTalk is
+    # Japanese-native, fully local and reads the source text directly.
+    if language_code == "ja-JP" and engine_choice != "kokoro":
+        return _synthesise_japanese_openjtalk(clean, speed, purpose)
 
     selected_voice = str(voice or profile.get("selected_voice") or _automatic_voice(language_code) or "").strip()
     if not selected_voice:
@@ -218,17 +278,14 @@ def synthesise(
             f"Persistent Kokoro generation is not available for {language_code}. Browser/system TTS remains available."
         )
 
-    if speed is None:
-        speed = float(profile.get("speed") or 1.0)
-    speed = max(0.65, min(1.35, float(speed)))
-
     known_for_language = voices_for_language(language_code)
     if known_for_language and selected_voice not in known_for_language:
         raise TTSServiceError(
             f"The selected voice '{selected_voice}' is not a compatible Kokoro voice for {language_code}."
         )
 
-    cache_id = _cache_id(clean, language_code, selected_voice, speed)
+    engine_variant = "kokoro-v1.0-ja-misaki-v2" if language_code == "ja-JP" else "kokoro-v1.0"
+    cache_id = _cache_id(clean, language_code, selected_voice, speed, engine_variant)
     out_dir = user_media_dir() / "generated" / language_code
     out_dir.mkdir(parents=True, exist_ok=True)
     wav_path = out_dir / f"{cache_id}.wav"
