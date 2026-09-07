@@ -219,7 +219,6 @@ def _contour_score(a: list[float] | None, b: list[float] | None) -> float | None
         corr = float(np.corrcoef(aa, bb)[0, 1])
         if not math.isfinite(corr):
             return None
-        # Shape similarity only. Different speaker pitch ranges are normal.
         return max(0.0, min(100.0, (corr + 1.0) * 50.0))
     except Exception:
         return None
@@ -332,6 +331,14 @@ def assess_pronunciation(
     }
     save_learning_feedback(session_id, language_code, "pronunciation", evidence_analysis)
     result["session_id"] = session_id
+    memory_updates = evidence_analysis.get("mistake_memory_updates") or []
+    recurring = [item for item in memory_updates if item.get("type") == "error" and int(item.get("occurrences") or 0) >= 2]
+    if recurring:
+        count = max(int(item.get("occurrences") or 0) for item in recurring)
+        result["feedback"].append(
+            f"This pronunciation practice gap has appeared {count} times. Focuslyra saved it for another spaced retest."
+        )
+    result["mistake_memory_updates"] = memory_updates
 
     output = learner_path.with_suffix(".pronunciation.json")
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
