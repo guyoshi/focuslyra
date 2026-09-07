@@ -23,12 +23,8 @@ def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
 
 
 def _ensure_user_column(conn: sqlite3.Connection, table: str) -> None:
-    # Existing personal MVP databases are migrated in place. Old records belong
-    # to the original local owner; future auth middleware can provide user ids.
     if not _has_column(conn, table, "user_id"):
-        conn.execute(
-            f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-owner'"
-        )
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-owner'")
 
 
 def initialise_database() -> None:
@@ -85,11 +81,8 @@ def initialise_database() -> None:
             );
             """
         )
-
-        # Safe in-place migration for databases created before user scoping.
         for table in ("sessions", "writings", "evidence_events", "ai_feedback"):
             _ensure_user_column(conn, table)
-
         conn.executescript(
             """
             CREATE INDEX IF NOT EXISTS idx_sessions_user_language
@@ -151,7 +144,6 @@ def save_learning_feedback(
     analysis: dict[str, Any],
     user_id: str | None = None,
 ) -> None:
-    """Persist AI feedback plus compact evidence events used by later sessions."""
     uid = user_id or current_user_id()
     created_at = utc_now()
     provider = str(analysis.get("provider") or "")
@@ -226,6 +218,12 @@ def save_learning_feedback(
                 ),
             )
         conn.commit()
+
+    try:
+        from .mistake_service import record_analysis_mistakes
+        record_analysis_mistakes(session_id, language_code, modality, analysis, user_id=uid)
+    except Exception as exc:
+        analysis["mistake_memory_warning"] = str(exc)[:500]
 
 
 def recent_learning_evidence(
