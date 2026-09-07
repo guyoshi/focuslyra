@@ -75,7 +75,12 @@ def materialise_review_targets(user_id: str | None = None) -> int:
             except json.JSONDecodeError:
                 payload = {}
             reason = str(payload.get('reason') or '').strip()
-            prompt = reason or 'Recall and use this naturally without looking at the answer first.'
+            prompt = str(
+                payload.get('review_prompt')
+                or reason
+                or 'Recall and use this naturally without looking at the answer first.'
+            ).strip()
+            answer = str(payload.get('review_answer') or item).strip()
             cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO review_items(
@@ -89,7 +94,7 @@ def materialise_review_targets(user_id: str | None = None) -> int:
                     item,
                     row['modality'] or 'production',
                     prompt,
-                    item,
+                    answer,
                     json.dumps(payload, ensure_ascii=False),
                     now,
                     row['created_at'] or now,
