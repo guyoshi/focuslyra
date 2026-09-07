@@ -45,7 +45,7 @@ jobs:
           const checks = [
             ['katana', 'hiragana', 'かたな'],
             ['katana', 'katakana', 'カタナ'],
-            ['konnichiwa', 'hiragana', 'こんにちは'],
+            ['konnichiha', 'hiragana', 'こんにちは'],
             ['gakkou', 'hiragana', 'がっこう'],
             ['ryokou', 'hiragana', 'りょこう'],
             ['shashin', 'hiragana', 'しゃしん'],
