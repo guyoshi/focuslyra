@@ -145,6 +145,37 @@ def save_learning_feedback(
     user_id: str | None = None,
 ) -> None:
     uid = user_id or current_user_id()
+    if modality == "pronunciation":
+        scores = analysis.get("scores") if isinstance(analysis.get("scores"), dict) else {}
+        try:
+            intelligibility = float(scores.get("controlled_intelligibility", 100))
+        except (TypeError, ValueError):
+            intelligibility = 100.0
+        try:
+            practice = float(scores.get("practice_similarity", 100))
+        except (TypeError, ValueError):
+            practice = 100.0
+        weak = intelligibility < 88 or practice < 75
+        if not weak:
+            analysis["patterns_to_revisit"] = []
+        else:
+            severity = "high" if intelligibility < 70 else "medium"
+            prepared = []
+            for raw in (analysis.get("patterns_to_revisit") or [])[:4]:
+                pattern = dict(raw) if isinstance(raw, dict) else {"item": str(raw)}
+                target = str(pattern.get("item") or "").strip()
+                if not target:
+                    continue
+                pattern.update({
+                    "learning_target": target,
+                    "category": "pronunciation_control",
+                    "severity": severity,
+                    "needs_retest": True,
+                    "reason": "Controlled pronunciation evidence was below the practice threshold while this feature was trained. V1 does not claim the feature itself caused the mismatch.",
+                })
+                prepared.append(pattern)
+            analysis["patterns_to_revisit"] = prepared
+
     created_at = utc_now()
     provider = str(analysis.get("provider") or "")
     model = str(analysis.get("model") or "")
