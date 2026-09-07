@@ -54,6 +54,25 @@ For example, learning `刀` creates a later review such as:
 
 with the hidden answer containing the reading and meaning.
 
+## When the learner writes something wrong
+
+Japanese submission feedback must distinguish the kind of problem instead of treating every mismatch as the same error:
+
+- **typo** — an accidental surface slip with little evidence of a knowledge gap;
+- **romaji** — an input/romanisation problem only when the submitted evidence actually contains romaji;
+- **kana** — wrong or missing hiragana/katakana knowledge, spelling or script choice;
+- **kanji** — a wrong character, kanji choice or reading-linked orthographic problem;
+- **grammar** — particles, conjugation, syntax or grammatical form;
+- **vocabulary / naturalness** — lexical choice, collocation or an unnatural Japanese expression.
+
+After the learner finishes the current thought, useful corrections show the untouched learner form, the corrected/natural form, the meaning in Brazilian Portuguese, a brief explanation and one short example when it helps. Meaning questions are answered before correction details. Short correction drills may correct immediately.
+
+A first error is evidence, not automatically a permanent weakness. Focuslyra decides whether it deserves later practice based on importance, the learner's current level, whether the concept has already been taught, and whether the same error recurs. A harmless one-off typo can be discarded.
+
+Meaningful errors enter **Mistake Memory** with a stable key, modality, occurrence count and a future retest date. Recurring errors are explicitly pointed out and receive more planning weight. Later activities should test the same underlying target in a new context or modality rather than merely asking the learner to copy the correction again.
+
+For beginners, an error may reveal knowledge that has not been taught yet. In that case Focuslyra teaches the concept, script rule, vocabulary or sound first, then moves to guided practice and only later to independent retrieval. The system must not score missing untaught knowledge as if it were a careless failure.
+
 ## Pedagogical rule
 
 Focuslyra should help the learner *produce* Japanese without a Japanese keyboard, but it should not turn kanji into invisible autocomplete. Kana conversion can be automatic because it is an input method. Kanji remains a lexical/orthographic learning decision, so suggestions require learner confirmation.
