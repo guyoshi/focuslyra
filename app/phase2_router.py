@@ -14,6 +14,7 @@ from .diagnostic_service import (
     save_part,
     start_english_diagnostic,
 )
+from .japanese_service import JapaneseServiceError, learn_kanji, romanise_japanese, suggest_kanji
 from .language_service import load_language_catalogue
 from .learning_engine import LearningEngineError, analyse_submission
 from .memory_index import index_source, index_status, retrieve
@@ -54,6 +55,21 @@ class DiagnosticTextPayload(BaseModel):
     prompt: str | None = None
 
 
+class JapaneseKanjiPayload(BaseModel):
+    text: str
+
+
+class JapaneseLearnPayload(BaseModel):
+    surface: str
+    reading: str
+    meaning: str = ''
+    source_text: str | None = None
+
+
+class JapaneseRomanisePayload(BaseModel):
+    text: str
+
+
 class CalendarPlanSettingsPayload(BaseModel):
     auto_schedule: bool | None = None
     window_start: str | None = None
@@ -78,6 +94,38 @@ def language_catalogue():
 @router.get('/study/plan')
 def study_plan(mode: str = 'normal'):
     return build_daily_plan('minimum' if mode == 'minimum' else 'normal')
+
+
+@router.post('/japanese/kanji-suggest')
+def japanese_kanji_suggest(payload: JapaneseKanjiPayload):
+    try:
+        return suggest_kanji(payload.text)
+    except JapaneseServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/japanese/kanji-learn')
+def japanese_kanji_learn(payload: JapaneseLearnPayload):
+    try:
+        return {
+            'ok': True,
+            'item': learn_kanji(
+                surface=payload.surface,
+                reading=payload.reading,
+                meaning=payload.meaning,
+                source_text=payload.source_text,
+            ),
+        }
+    except JapaneseServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/japanese/romanise')
+def japanese_romanise(payload: JapaneseRomanisePayload):
+    try:
+        return {'text': romanise_japanese(payload.text)}
+    except JapaneseServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get('/review/due')
