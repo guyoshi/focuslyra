@@ -32,6 +32,7 @@ jobs:
           node --check static/learning.js
           node --check static/learning-navigation.js
           node --check static/japanese-support.js
+          node --check static/japanese-input.js
           node --check static/voice-settings.js
           node --check static/phase2.js
           node --check static/dashboard-evidence.js
@@ -39,6 +40,22 @@ jobs:
           node --check static/language-settings.js
           grep -q "learning-navigation.js" static/dashboard-evidence.js
           grep -q "japanese-support.js" static/dashboard-evidence.js
+          node - <<'JS'
+          const jp = require('./static/japanese-input.js');
+          const checks = [
+            ['katana', 'hiragana', 'かたな'],
+            ['katana', 'katakana', 'カタナ'],
+            ['konnichiha', 'hiragana', 'こんにちは'],
+            ['gakkou', 'hiragana', 'がっこう'],
+            ['ryokou', 'hiragana', 'りょこう'],
+            ['shashin', 'hiragana', 'しゃしん'],
+          ];
+          for (const [source, script, expected] of checks) {
+            const actual = jp.romajiToKana(source, script, true);
+            if (actual !== expected) throw new Error(`${source}: ${actual} !== ${expected}`);
+          }
+          console.log('Japanese romaji → kana input OK');
+          JS
 
       - name: Validate JSON data
         run: |
@@ -56,7 +73,7 @@ jobs:
           ALLOW_PAID_AI: "false"
         run: |
           python - <<'PY'
-          from app.japanese_service import romanise_japanese
+          from app.japanese_service import contains_kanji, romanise_japanese
           from app.language_service import load_language_catalogue, load_languages
           from app.placement_service import placement_prompts
           from app.runtime import current_user_id
@@ -78,11 +95,12 @@ jobs:
 
           romaji = romanise_japanese('今日は日本語を勉強します。').lower()
           assert 'nihon' in romaji and 'benkyou' in romaji
+          assert contains_kanji('刀') and not contains_kanji('かたな')
 
           select_user('local-owner')
           assert current_user_id() == 'local-owner'
           assert len(load_language_catalogue()) == 7
-          print('Learner profiles + catalogue + placement + romaji scaffolding OK')
+          print('Learner profiles + catalogue + placement + Japanese scaffolding OK')
           PY
 
       - name: Validate adaptive study and learning v2 services
@@ -158,7 +176,7 @@ jobs:
               '/api/diagnostic/english/start', '/api/calendar/schedule-plan', '/api/voice/catalog',
               '/api/users', '/api/users/select', '/api/languages/catalogue', '/api/placement/{language_code}',
               '/api/placement/{language_code}/text', '/api/placement/{language_code}/recording/{recording_id}',
-              '/api/japanese/romaji'
+              '/api/japanese/romaji', '/api/japanese/romanise', '/api/japanese/kanji-suggest', '/api/japanese/kanji-learn'
           }
           missing = required - paths
           assert not missing, missing
