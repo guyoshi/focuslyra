@@ -35,6 +35,7 @@ DEFAULT_VOICES = {
     "fr-FR": "ff_siwis",
     "it-IT": "if_sara",
     "ja-JP": "jf_alpha",
+    "pt-BR": "pf_dora",
 }
 
 LANG_MAP = {
@@ -43,6 +44,7 @@ LANG_MAP = {
     "fr-FR": "fr-fr",
     "it-IT": "it",
     "ja-JP": "ja",
+    "pt-BR": "pt-br",
 }
 
 VOICE_PREFIXES = {
@@ -51,6 +53,7 @@ VOICE_PREFIXES = {
     "fr-FR": ("ff_", "fm_"),
     "it-IT": ("if_", "im_"),
     "ja-JP": ("jf_", "jm_"),
+    "pt-BR": ("pf_", "pm_"),
 }
 
 

@@ -16,6 +16,7 @@ VALID_PURPOSES = {"default", "reference", "conversation", "listening"}
 
 DEFAULT_VOICES = {
     "en-GB": "bm_george",
+    "pt-BR": "pf_dora",
 }
 
 

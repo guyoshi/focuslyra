@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -61,6 +62,15 @@ runtime_config().media_root.mkdir(parents=True, exist_ok=True)
 initialise_database()
 
 app = FastAPI(title="Focuslyra", version="0.6.0")
+# Focuslyra is local-only/single-user, so a permissive CORS policy is safe here.
+# Needed so other local tools on this machine (e.g. the book editor's narrator
+# feature, opened as a local HTML file) can call the local TTS endpoint.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(voice_router)
 
