@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-09-03
+Last updated: 2026-09-07
 
 ## Product
 
@@ -8,7 +8,7 @@ Name: **Focuslyra**
 
 Focuslyra is a local-first language-learning workspace with adaptive study, learner-owned memory, multimodal evidence and replaceable AI/audio providers.
 
-Current milestone: **core learning system through blocks 1–11**.
+Current milestone: **core learning system through blocks 1–11 + adaptive Mistake Memory v1**.
 
 ## Implemented
 
@@ -22,7 +22,7 @@ Current milestone: **core learning system through blocks 1–11**.
 - global language catalogue separate from learner state.
 
 ### Adaptive daily learning
-- Session Planner v1 based on priorities, active/maintenance state, recency, frequency, review targets, goals and skill evidence.
+- Session Planner v2 based on priorities, active/maintenance state, recency, frequency, review targets, learner-error memory, goals and skill evidence.
 - normal/minimum-day plans.
 - lightweight plan-only endpoint for Dashboard/Calendar.
 - dynamic Speak, Listen, Write, Read and Pronounce activities.
@@ -30,6 +30,21 @@ Current milestone: **core learning system through blocks 1–11**.
 - Whisper transcription and Qwen assessment.
 - Kokoro WAV generation/cache + system TTS fallback.
 - evidence persists and influences later plans.
+- placement/current-state memory controls teaching depth and expected independence.
+- beginners receive teaching/scaffolding before independent retrieval when knowledge is not yet established.
+
+### Mistake Memory v1
+- durable user/language-scoped learner-error memory with stable semantic keys;
+- separate category, modality, target, correction, explanation, severity and occurrence count;
+- one-off low-value typos can be discarded instead of becoming permanent weaknesses;
+- recurring errors are explicitly identified and receive greater planning weight;
+- first errors are spaced to later days instead of blindly repeated in the same session;
+- due mistakes become hidden retrieval targets in later adaptive activities;
+- retest success/failure feeds the same memory;
+- two successful retests resolve an active mistake, while later failure can reactivate it;
+- Japanese error taxonomy distinguishes typo, romaji, kana, kanji, grammar and vocabulary/naturalness;
+- beginner errors can be marked as untaught/emerging knowledge so feedback teaches before testing;
+- controlled pronunciation gaps can enter Mistake Memory only when measured practice evidence is below threshold.
 
 ### Pronunciation v1
 - original audio preservation;
@@ -37,7 +52,8 @@ Current milestone: **core learning system through blocks 1–11**.
 - local reference TTS;
 - Whisper intelligibility;
 - timing/rhythm/broad prosody comparison with Praat/Parselmouth;
-- evidence history.
+- evidence history;
+- repeated weak controlled-pronunciation evidence is surfaced and scheduled for later retest.
 
 Exact phoneme judgement remains intentionally pending forced alignment/calibration.
 
@@ -47,7 +63,8 @@ Exact phoneme judgement remains intentionally pending forced alignment/calibrati
 - reveal-after-retrieval UI;
 - Again/Hard/Good/Easy grading;
 - adaptive interval/ease/repetition state;
-- review results return to the evidence stream.
+- review results return to the evidence stream;
+- mistake-derived reviews also update Mistake Memory.
 
 ### Concepts v1
 - persistent user concepts;
@@ -100,6 +117,8 @@ Final synthesis produces an ability map without claiming certified CEFR or unsup
 
 ## Known limits / future refinements
 - exact phoneme forced alignment + accent-specific calibration;
+- richer per-skill level state beyond current placement/current-state summary;
+- mistake-memory UI/history view and manual learner controls;
 - realtime low-latency AI voice conversation;
 - richer concept recognition/production/sense mastery;
 - vector/embedding semantic RAG beyond the current lexical local retrieval;
@@ -126,10 +145,12 @@ See `FEATURE_STATUS.md` for the detailed truth table.
 6. Generated exercises based on source projects are non-canon.
 7. Speaking/listening remain primary learning goals.
 8. Recognition and production are separate evidence dimensions.
-9. Concept visuals prefer emoji/reuse before generation.
-10. Adding a language should mainly be configuration/data.
-11. Mobile/hosted versions reuse the same learning contracts, not a second product.
-12. Cloud/billing infrastructure is deferred until actually required.
+9. Meaningful recurring errors must influence future teaching/retrieval; harmless surface slips must not become permanent weaknesses by default.
+10. Beginner knowledge must be taught/scaffolded before independent retrieval is expected.
+11. Concept visuals prefer emoji/reuse before generation.
+12. Adding a language should mainly be configuration/data.
+13. Mobile/hosted versions reuse the same learning contracts, not a second product.
+14. Cloud/billing infrastructure is deferred until actually required.
 
 ## Next milestone
 

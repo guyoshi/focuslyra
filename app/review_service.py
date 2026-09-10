@@ -6,6 +6,7 @@ from typing import Any
 
 from .db import connection
 from .language_service import load_languages
+from .mistake_service import apply_review_rating
 from .runtime import current_user_id
 
 
@@ -169,10 +170,21 @@ def grade_review(item_id: int, rating: str, user_id: str | None = None) -> dict[
     if rating not in {'again', 'hard', 'good', 'easy'}:
         raise ReviewServiceError('Rating must be again, hard, good or easy.')
 
+    memory_key = ''
+    language_code = ''
+    modality = ''
     with connection() as conn:
         row = conn.execute('SELECT * FROM review_items WHERE id = ? AND user_id = ?', (item_id, uid)).fetchone()
         if row is None:
             raise ReviewServiceError('Review item not found.')
+
+        try:
+            payload = json.loads(row['payload_json'] or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+        memory_key = str(payload.get('memory_key') or '').strip()
+        language_code = str(row['language_code'] or '')
+        modality = str(row['modality'] or 'review')
 
         ease = float(row['ease'])
         interval = float(row['interval_days'])
@@ -217,10 +229,13 @@ def grade_review(item_id: int, rating: str, user_id: str | None = None) -> dict[
                 row['item_key'],
                 row['modality'],
                 score,
-                json.dumps({'rating': rating, 'next_interval_days': interval}, ensure_ascii=False),
+                json.dumps({'rating': rating, 'next_interval_days': interval, 'memory_key': memory_key or None}, ensure_ascii=False),
                 _iso(now),
             ),
         )
         conn.commit()
         updated = conn.execute('SELECT * FROM review_items WHERE id = ?', (item_id,)).fetchone()
+
+    if memory_key:
+        apply_review_rating(memory_key, rating, language_code, modality, user_id=uid)
     return _row_to_item(updated)

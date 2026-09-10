@@ -23,12 +23,8 @@ def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
 
 
 def _ensure_user_column(conn: sqlite3.Connection, table: str) -> None:
-    # Existing personal MVP databases are migrated in place. Old records belong
-    # to the original local owner; future auth middleware can provide user ids.
     if not _has_column(conn, table, "user_id"):
-        conn.execute(
-            f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-owner'"
-        )
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-owner'")
 
 
 def initialise_database() -> None:
@@ -85,11 +81,8 @@ def initialise_database() -> None:
             );
             """
         )
-
-        # Safe in-place migration for databases created before user scoping.
         for table in ("sessions", "writings", "evidence_events", "ai_feedback"):
             _ensure_user_column(conn, table)
-
         conn.executescript(
             """
             CREATE INDEX IF NOT EXISTS idx_sessions_user_language
@@ -151,8 +144,38 @@ def save_learning_feedback(
     analysis: dict[str, Any],
     user_id: str | None = None,
 ) -> None:
-    """Persist AI feedback plus compact evidence events used by later sessions."""
     uid = user_id or current_user_id()
+    if modality == "pronunciation":
+        scores = analysis.get("scores") if isinstance(analysis.get("scores"), dict) else {}
+        try:
+            intelligibility = float(scores.get("controlled_intelligibility", 100))
+        except (TypeError, ValueError):
+            intelligibility = 100.0
+        try:
+            practice = float(scores.get("practice_similarity", 100))
+        except (TypeError, ValueError):
+            practice = 100.0
+        weak = intelligibility < 88 or practice < 75
+        if not weak:
+            analysis["patterns_to_revisit"] = []
+        else:
+            severity = "high" if intelligibility < 70 else "medium"
+            prepared = []
+            for raw in (analysis.get("patterns_to_revisit") or [])[:4]:
+                pattern = dict(raw) if isinstance(raw, dict) else {"item": str(raw)}
+                target = str(pattern.get("item") or "").strip()
+                if not target:
+                    continue
+                pattern.update({
+                    "learning_target": target,
+                    "category": "pronunciation_control",
+                    "severity": severity,
+                    "needs_retest": True,
+                    "reason": "Controlled pronunciation evidence was below the practice threshold while this feature was trained. V1 does not claim the feature itself caused the mismatch.",
+                })
+                prepared.append(pattern)
+            analysis["patterns_to_revisit"] = prepared
+
     created_at = utc_now()
     provider = str(analysis.get("provider") or "")
     model = str(analysis.get("model") or "")
@@ -226,6 +249,12 @@ def save_learning_feedback(
                 ),
             )
         conn.commit()
+
+    try:
+        from .mistake_service import record_analysis_mistakes
+        record_analysis_mistakes(session_id, language_code, modality, analysis, user_id=uid)
+    except Exception as exc:
+        analysis["mistake_memory_warning"] = str(exc)[:500]
 
 
 def recent_learning_evidence(

@@ -1,0 +1,124 @@
+name: Focuslyra mistake memory smoke
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  mistake-memory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile application
+        run: python -m compileall -q app
+
+      - name: Validate durable mistake memory
+        env:
+          ALLOW_PAID_AI: "false"
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+
+          from app.db import connection, initialise_database, save_learning_feedback, save_session
+          from app.mistake_service import due_mistake_targets, mistake_memory
+          from app.review_service import apply_review_rating
+          from app.session_planner import build_daily_plan
+          from app.user_service import select_user
+
+          select_user('local-owner')
+          initialise_database()
+
+          analysis = {
+              'provider': 'smoke',
+              'model': 'rules',
+              'scores': {'communication': 70},
+              'corrections': [{
+                  'original': 'わたしは学校をいく',
+                  'natural': 'わたしは学校に行く',
+                  'meaning_pt': 'Eu vou à escola.',
+                  'explanation_pt': 'Com 行く, o destino normalmente usa に ou へ.',
+                  'example': '学校に行きます。',
+                  'category': 'grammar',
+                  'learning_target': 'destination particle に with 行く',
+                  'memory_key': 'ja:particle-ni-destination-iku',
+                  'knowledge_state': 'emerging',
+                  'severity': 'medium',
+                  'needs_retest': True,
+              }],
+              'patterns_to_revisit': [{
+                  'item': 'destination particle に with 行く',
+                  'learning_target': 'destination particle に with 行く',
+                  'category': 'grammar',
+                  'memory_key': 'ja:particle-ni-destination-iku',
+                  'severity': 'medium',
+                  'needs_retest': True,
+                  'review_prompt': 'Say that you are going to school in Japanese.',
+                  'review_answer': '学校に行きます。',
+              }],
+              'mistake_outcomes': [],
+          }
+          first = save_session({'language_code': 'ja-JP', 'mode': 'writing', 'writing': analysis['corrections'][0]['original']})
+          save_learning_feedback(first, 'ja-JP', 'writing', analysis)
+          memory = mistake_memory('ja-JP')
+          target = next(item for item in memory if item['memory_key'] == 'ja:particle-ni-destination-iku')
+          assert target['occurrences'] == 1
+          assert target['successful_retests'] == 0
+          assert target['status'] == 'active'
+          assert due_mistake_targets('ja-JP') == []
+
+          second = save_session({'language_code': 'ja-JP', 'mode': 'writing', 'writing': analysis['corrections'][0]['original']})
+          save_learning_feedback(second, 'ja-JP', 'writing', analysis)
+          target = next(item for item in mistake_memory('ja-JP') if item['memory_key'] == 'ja:particle-ni-destination-iku')
+          assert target['occurrences'] == 2
+
+          with connection() as conn:
+              conn.execute(
+                  "UPDATE learning_mistakes SET next_due_at = ? WHERE user_id = 'local-owner' AND language_code = 'ja-JP' AND memory_key = ?",
+                  (datetime.now(timezone.utc).isoformat(), 'ja:particle-ni-destination-iku'),
+              )
+              conn.commit()
+          due = due_mistake_targets('ja-JP')
+          assert any(item['memory_key'] == 'ja:particle-ni-destination-iku' for item in due)
+
+          plan = build_daily_plan('normal')
+          japanese_slots = [item for item in plan['activities'] if item['language_code'] == 'ja-JP']
+          if japanese_slots:
+              assert any('destination particle に with 行く' in item.get('hidden_targets', []) for item in japanese_slots)
+
+          apply_review_rating('ja:particle-ni-destination-iku', 'good', 'ja-JP', 'writing')
+          apply_review_rating('ja:particle-ni-destination-iku', 'good', 'ja-JP', 'writing')
+          resolved = next(item for item in mistake_memory('ja-JP', include_resolved=True) if item['memory_key'] == 'ja:particle-ni-destination-iku')
+          assert resolved['successful_retests'] == 2
+          assert resolved['status'] == 'resolved'
+          assert not any(item['memory_key'] == 'ja:particle-ni-destination-iku' for item in due_mistake_targets('ja-JP'))
+
+          strong_pronunciation = {
+              'scores': {'controlled_intelligibility': 96, 'practice_similarity': 90},
+              'patterns_to_revisit': [{'item': 'sentence rhythm', 'reason': 'controlled pronunciation practice'}],
+          }
+          p1 = save_session({'language_code': 'en-GB', 'mode': 'pronunciation'})
+          save_learning_feedback(p1, 'en-GB', 'pronunciation', strong_pronunciation)
+          assert not any(item['category'] == 'pronunciation_control' for item in mistake_memory('en-GB'))
+
+          weak_pronunciation = {
+              'scores': {'controlled_intelligibility': 72, 'practice_similarity': 68},
+              'patterns_to_revisit': [{'item': 'sentence rhythm', 'reason': 'controlled pronunciation practice'}],
+          }
+          p2 = save_session({'language_code': 'en-GB', 'mode': 'pronunciation'})
+          save_learning_feedback(p2, 'en-GB', 'pronunciation', weak_pronunciation)
+          assert any(item['category'] == 'pronunciation_control' for item in mistake_memory('en-GB'))
+
+          print('Adaptive mistake memory OK')
+          PY

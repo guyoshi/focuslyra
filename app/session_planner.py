@@ -6,6 +6,7 @@ from typing import Any
 
 from .db import connection, recent_learning_evidence
 from .language_service import load_languages
+from .mistake_service import due_mistake_targets, mistake_stats
 from .profile_service import load_profile
 from .runtime import current_user_id
 
@@ -16,6 +17,8 @@ class LanguageStats:
     sessions_7d: int
     sessions_30d: int
     review_targets: int
+    due_mistakes: int
+    recurring_mistakes: int
     average_skill_score: float | None
 
 
@@ -51,11 +54,14 @@ def _language_stats(language_code: str, user_id: str | None = None) -> LanguageS
 
     evidence = recent_learning_evidence(language_code, limit=40, user_id=uid)
     review_targets = sum(1 for event in evidence if event.get("event_type") == "review_target")
+    mistakes = mistake_stats(language_code, user_id=uid)
     return LanguageStats(
         last_session_at=latest["last_at"] if latest else None,
         sessions_7d=int(seven_row["n"] if seven_row else 0),
         sessions_30d=int(thirty_row["n"] if thirty_row else 0),
         review_targets=review_targets,
+        due_mistakes=int(mistakes.get("due") or 0),
+        recurring_mistakes=int(mistakes.get("recurring") or 0),
         average_skill_score=float(score_row["avg_score"]) if score_row and score_row["avg_score"] is not None else None,
     )
 
@@ -77,10 +83,12 @@ def _priority_score(language: dict[str, Any], stats: LanguageStats) -> float:
     status = str(language.get("status", "parked"))
     status_weight = {"active": 100.0, "maintenance": 38.0, "parked": -1000.0}.get(status, 0.0)
     stale = min(18.0, _days_since(stats.last_session_at) * 2.2)
-    review = min(16.0, stats.review_targets * 2.0)
+    review = min(14.0, stats.review_targets * 1.4)
+    due_errors = min(22.0, stats.due_mistakes * 4.0)
+    recurring = min(10.0, stats.recurring_mistakes * 2.0)
     scarcity = max(0.0, 7.0 - stats.sessions_7d) * 1.5
     difficulty = 0.0 if stats.average_skill_score is None else max(0.0, (70.0 - stats.average_skill_score) / 8.0)
-    return status_weight + (12.0 - priority * 2.4) + stale + review + scarcity + difficulty
+    return status_weight + (12.0 - priority * 2.4) + stale + review + due_errors + recurring + scarcity + difficulty
 
 
 def _mode_candidates(language: dict[str, Any], stats: LanguageStats) -> list[str]:
@@ -88,9 +96,7 @@ def _mode_candidates(language: dict[str, Any], stats: LanguageStats) -> list[str
     code = str(language.get("code", ""))
     modes: list[str] = []
 
-    # Review is a learning intention, not a separate Study screen. Due review
-    # targets are retrieved through speaking first, then another suitable mode.
-    if stats.review_targets:
+    if stats.due_mistakes or stats.review_targets:
         modes.append("speak")
     if "pronunciation" in goals or "accent" in goals or "rp" in goals:
         modes.extend(["pronounce", "listen"])
@@ -112,17 +118,30 @@ def _mode_candidates(language: dict[str, Any], stats: LanguageStats) -> list[str
 
 
 def _hidden_targets(language_code: str, user_id: str | None = None) -> list[str]:
-    events = recent_learning_evidence(language_code, limit=30, user_id=user_id)
+    """Return mistake targets only when their spaced retest is actually due."""
+    uid = user_id or current_user_id()
+    due = due_mistake_targets(language_code, limit=4, user_id=uid)
+    due_keys = {str(item.get("memory_key") or "") for item in due}
     targets: list[str] = []
+    for item in due:
+        target = str(item.get("learning_target") or item.get("corrected") or "").strip()
+        if target and target not in targets:
+            targets.append(target)
+
+    events = recent_learning_evidence(language_code, limit=40, user_id=uid)
     for event in events:
         if event.get("event_type") != "review_target":
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        memory_key = str(payload.get("memory_key") or "").strip()
+        if memory_key and memory_key not in due_keys:
             continue
         item = str(event.get("item_id") or "").strip()
         if item and item not in targets:
             targets.append(item)
         if len(targets) >= 4:
             break
-    return targets
+    return targets[:4]
 
 
 def _session_minutes(profile: dict[str, Any], mode: str) -> int:
@@ -135,11 +154,7 @@ def _session_minutes(profile: dict[str, Any], mode: str) -> int:
 
 
 def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[str, Any]:
-    """Build a deterministic plan from learner priorities, recency and evidence.
-
-    The planner decides what needs practice. The local activity generator decides
-    how to present each slot, keeping scheduling reliable even if an LLM is down.
-    """
+    """Build a deterministic plan from learner priorities, recency and evidence."""
     uid = user_id or current_user_id()
     profile = load_profile(uid)
     languages = load_languages(uid)
@@ -188,6 +203,12 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
     for index, (language, stats, modality) in enumerate(slots):
         minutes = max(4, base + (1 if index < remainder else 0))
         targets = _hidden_targets(str(language.get("code")), uid)
+        if stats.due_mistakes:
+            reason = "learner-error memory is due for a spaced retest"
+        elif targets:
+            reason = "retrieval evidence is due"
+        else:
+            reason = "priority, recency and learner goals"
         activities.append(
             {
                 "id": f"a{index + 1}",
@@ -199,11 +220,13 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
                 "modality": modality,
                 "minutes": minutes,
                 "hidden_targets": targets,
-                "reason": "retrieval evidence is due" if targets else "priority, recency and learner goals",
+                "reason": reason,
                 "stats": {
                     "days_since_last_session": round(_days_since(stats.last_session_at), 1),
                     "sessions_7d": stats.sessions_7d,
                     "review_targets": stats.review_targets,
+                    "due_mistakes": stats.due_mistakes,
+                    "recurring_mistakes": stats.recurring_mistakes,
                 },
             }
         )
@@ -214,5 +237,5 @@ def build_daily_plan(mode: str = "normal", user_id: str | None = None) -> dict[s
         "activities": activities,
         "languages": [item[1].get("code") for item in chosen],
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "planner": "focuslyra-rules-v1",
+        "planner": "focuslyra-rules-v2-mistake-memory",
     }
